@@ -1,0 +1,30 @@
+[project]
+name = "album-card-generator"
+version = "0.1.0"
+description = "Generate printable cassette j-cards from Navidrome albums and playlists"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "py-opensonic>=0.9.0",
+    "reportlab>=4.0.0",
+    "pillow>=10.0.0",
+    "click>=8.0.0",
+    "pydantic>=2.0.0",
+]
+
+[project.scripts]
+cardgen = "cardgen.cli:main"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true

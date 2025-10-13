@@ -1,0 +1,42 @@
+# Navidrome Configuration
+[navidrome]
+url = "https://music.example.com"
+username = "your_username"
+password = "your_password"
+
+# Output Settings
+[output]
+# Default card type: jcard_4panel, jcard_2panel (future), jcard_6panel (future)
+default_card_type = "jcard_4panel"
+
+# Default theme: default, minimal (future)
+default_theme = "default"
+
+# Default page size: letter, half, a4, a5
+default_page_size = "letter"
+
+# DPI for PDF output (300 minimum, 600 recommended)
+dpi = 600
+
+# Include crop marks and fold guides on PDF
+include_crop_marks = true
+
+# Named output templates
+# Use placeholders: {artist}, {album}, {year}, {date}
+[output.templates]
+default = "{artist} - {album}.pdf"
+dated = "{artist} - {album} ({year}).pdf"
+simple = "{album}.pdf"
+
+# Default Theme Configuration
+[themes.default]
+font_family = "Helvetica"
+title_font_size = 14
+artist_font_size = 12
+track_font_size = 10
+metadata_font_size = 8
+
+# Color scheme (RGB 0-1 format)
+background_color = [1.0, 1.0, 1.0]  # white
+text_color = [0.0, 0.0, 0.0]        # black
+accent_color = [0.2, 0.2, 0.2]      # dark gray

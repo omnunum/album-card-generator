@@ -33,7 +33,7 @@ class Album:
     title: str
     artist: str
     year: int | None
-    genre: str | None
+    genres: list[str]
     label: str | None
     cover_art: bytes  # Raw image data
     tracks: list[Track]

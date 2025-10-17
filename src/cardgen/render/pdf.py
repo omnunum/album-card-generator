@@ -4,7 +4,7 @@ from io import BytesIO
 from pathlib import Path
 
 from PIL import Image as PILImage
-from reportlab.lib.colors import Color, black
+from reportlab.lib.colors import Color, black, lightgrey, gray
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import inch
 from reportlab.lib.utils import ImageReader
@@ -99,6 +99,7 @@ class PDFRenderer:
             color_scheme=theme.get_color_scheme(),
             padding=inches_to_points(theme.get_padding()),
             dpi=self.dpi,
+            track_title_overflow=theme.get_track_title_overflow(),
         )
 
         # Polymorphic call - each section renders itself
@@ -113,8 +114,8 @@ class PDFRenderer:
         fold_lines: list[float],
     ) -> None:
         """Draw crop marks and fold guides."""
-        c.setStrokeColor(black)
-        c.setLineWidth(0.5)
+        c.setStrokeColor(gray)
+        c.setLineWidth(0.25)
         c.setDash(1, 2)
 
         # Convert to points

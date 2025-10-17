@@ -7,7 +7,8 @@ from reportlab.lib.utils import ImageReader
 
 from cardgen.design.base import CardSection, RendererContext
 from cardgen.render.image import resize_and_crop_cover
-from cardgen.utils.dimensions import Dimensions
+from cardgen.utils.dimensions import Dimensions, SAFE_MARGIN, inches_to_points
+from cardgen.utils.text import calculate_max_font_size
 
 
 class CoverSection(CardSection):
@@ -41,15 +42,17 @@ class CoverSection(CardSection):
         c = context.canvas
 
         # Calculate dimensions for square album art (leaving room for text)
-        text_height = 60  # Reserve space for title and artist
+        text_height = 60  # Reserve space for title and artist at bottom
+
+        # Art fills full panel width (no side padding) and extends to top
         art_size = min(
-            context.width - (context.padding * 2),
-            context.height - text_height - (context.padding * 3),
+            context.width,  # Full width, no padding
+            context.height - text_height,  # Fill from top down to text area
         )
 
-        # Center album art horizontally
-        art_x = context.x + (context.width - art_size) / 2
-        art_y = context.y + context.height - art_size - context.padding
+        # Position album art at left edge, extending to top
+        art_x = context.x
+        art_y = context.y + context.height - art_size
 
         # Resize and crop album art
         target_px = int((art_size / 72) * context.dpi)
@@ -74,14 +77,105 @@ class CoverSection(CardSection):
         # Draw title and artist below album art
         c.setFillColor(Color(*context.color_scheme.text))
 
-        # Artist
-        c.setFont(context.font_config.family, context.font_config.artist_size)
-        text_y = art_y - context.padding - context.font_config.artist_size
-        c.drawCentredString(context.x + context.width / 2, text_y, self.artist)
+        # Calculate available width for text (respect safe margins)
+        safe_margin_pts = inches_to_points(SAFE_MARGIN)
+        available_text_width = context.width - (context.padding * 2) - (safe_margin_pts * 2)
 
-        # Title
-        c.setFont(
-            f"{context.font_config.family}-Bold", context.font_config.title_size
+        # Artist - with word wrapping if needed
+        artist_size = context.font_config.artist_size
+        text_y = art_y - context.padding - artist_size
+
+        artist_width = c.stringWidth(self.artist, context.font_config.family, artist_size)
+
+        if artist_width <= available_text_width:
+            # Single line artist
+            c.setFont(context.font_config.family, artist_size)
+            c.drawCentredString(context.x + context.width / 2, text_y, self.artist)
+        else:
+            # Multi-line artist - split at word boundaries
+            words = self.artist.split()
+            lines = []
+            current_line = []
+
+            for word in words:
+                test_line = " ".join(current_line + [word])
+                test_width = c.stringWidth(test_line, context.font_config.family, artist_size)
+
+                if test_width <= available_text_width:
+                    current_line.append(word)
+                else:
+                    if current_line:
+                        lines.append(" ".join(current_line))
+                        current_line = [word]
+                    else:
+                        # Single word too long, force it
+                        lines.append(word)
+
+            if current_line:
+                lines.append(" ".join(current_line))
+
+            # Draw each line centered
+            c.setFont(context.font_config.family, artist_size)
+            line_spacing = 2
+            total_artist_height = len(lines) * artist_size + (len(lines) - 1) * line_spacing
+
+            # Adjust text_y for multi-line artist
+            for i, line in enumerate(lines):
+                line_y = text_y - (i * (artist_size + line_spacing))
+                c.drawCentredString(context.x + context.width / 2, line_y, line)
+
+            # Update text_y to account for multiple lines
+            text_y -= total_artist_height
+
+        # Title - use dynamic sizing to fit within panel width
+        title_font_name = f"{context.font_config.family}-Bold"
+
+        # Calculate optimal title size
+        title_size = calculate_max_font_size(
+            c, self.title, title_font_name, available_text_width,
+            context.font_config.title_size * 2,  # Allow up to 2x normal size
+            min_size=8, max_size=context.font_config.title_size + 4,
+            safe_margin=0  # Already accounted for above
         )
-        text_y -= context.font_config.title_size + 4
-        c.drawCentredString(context.x + context.width / 2, text_y, self.title)
+
+        # Check if title fits on one line
+        title_width = c.stringWidth(self.title, title_font_name, title_size)
+
+        if title_width <= available_text_width:
+            # Single line title
+            c.setFont(title_font_name, title_size)
+            text_y -= title_size + 4
+            c.drawCentredString(context.x + context.width / 2, text_y, self.title)
+            return
+        
+        # Multi-line title - split at word boundaries
+        words = self.title.split()
+        lines = []
+        current_line = []
+
+        for word in words:
+            test_line = " ".join(current_line + [word])
+            test_width = c.stringWidth(test_line, title_font_name, title_size)
+
+            if test_width <= available_text_width:
+                current_line.append(word)
+            else:
+                if current_line:
+                    lines.append(" ".join(current_line))
+                    current_line = [word]
+                else:
+                    # Single word too long, force it
+                    lines.append(word)
+
+        if current_line:
+            lines.append(" ".join(current_line))
+
+        # Draw each line centered
+        c.setFont(title_font_name, title_size)
+        line_spacing = 2
+        total_title_height = len(lines) * title_size + (len(lines) - 1) * line_spacing
+        text_y -= total_title_height + 4
+
+        for i, line in enumerate(lines):
+            line_y = text_y + total_title_height - (i * (title_size + line_spacing))
+            c.drawCentredString(context.x + context.width / 2, line_y, line)

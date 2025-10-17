@@ -2,18 +2,22 @@
 
 from reportlab.lib.colors import Color
 
+from cardgen.api.models import Album
 from cardgen.design.base import CardSection, RendererContext
 from cardgen.utils.dimensions import Dimensions
+from cardgen.utils.genres import get_leaf_genres
 
 
 class MetadataSection(CardSection):
-    """Metadata section with vertical text (genre, label, year, etc.)."""
+    """Metadata section with horizontal multi-line text in two columns."""
 
     def __init__(
         self,
         name: str,
         dimensions: Dimensions,
-        items: list[str],
+        album: Album,
+        font_size: float = 5.0,
+        padding_override: float | None = None,
     ) -> None:
         """
         Initialize metadata section.
@@ -21,38 +25,76 @@ class MetadataSection(CardSection):
         Args:
             name: Section name.
             dimensions: Section dimensions.
-            items: List of metadata items to display.
+            album: Album object with genres and metadata.
+            font_size: Font size in points (default: 5.0).
+            padding_override: Custom padding in inches. If None, uses theme default.
         """
         super().__init__(name, dimensions)
-        self.items = items
+        self.album = album
+        self.font_size = font_size
+        self.padding_override = padding_override
 
     def render(self, context: RendererContext) -> None:
-        """Render metadata items vertically."""
+        """Render metadata content as two columns of vertical text (rotated 90 degrees)."""
         c = context.canvas
 
-        # Combine items with separator
-        metadata_text = " • ".join(self.items)
+        # Process album data into left and right columns
+        # Left column: Leaf genres
+        leaf_genres = get_leaf_genres(self.album.genres)
+        left_lines = []
+        if leaf_genres:
+            # First genre gets "Genre: " prefix
+            left_lines.append(f"Genre: {leaf_genres[0]}")
+            # Subsequent genres are indented to align with first genre
+            for genre in leaf_genres[1:]:
+                left_lines.append(f"            {genre}")
 
+        # Right column: Album metadata
+        right_lines = []
+        if self.album.year:
+            right_lines.append(f"Year: {self.album.year}")
+        if self.album.label:
+            right_lines.append(f"Label: {self.album.label}")
+        right_lines.append(f"Duration: {self.album.format_total_duration()}")
+        right_lines.append(f"Tracks: {len(self.album.tracks)}")
+
+        # Set up drawing
         c.setFillColor(Color(*context.color_scheme.text))
-        c.setFont(context.font_config.family, context.font_config.metadata_size)
+        c.setFont(context.font_config.family, self.font_size)
 
-        # Save state, rotate, and draw vertical text
+        # Use custom padding if provided, otherwise use theme default
+        padding = self.padding_override if self.padding_override is not None else context.padding
+
+        line_height = self.font_size * 1.2  # 20% line spacing
+
+        # Save state and set up rotation
         c.saveState()
 
-        # Rotate 90 degrees counterclockwise and position text
-        c.translate(
-            context.x + context.width / 2, context.y + context.height / 2
-        )
-        c.rotate(90)
+        # Translate to bottom-left of where rotated content should appear, then rotate
+        c.translate(context.x + context.width, context.y)
+        c.rotate(90)  # 90 degrees counterclockwise
 
-        # Draw centered text
-        text_width = c.stringWidth(
-            metadata_text,
-            context.font_config.family,
-            context.font_config.metadata_size,
-        )
-        c.drawString(
-            -text_width / 2, -context.font_config.metadata_size / 2, metadata_text
-        )
+        # Now we're in a simple (0,0) coordinate system
+        # Available space is (context.height × context.width) after rotation
+
+        # Draw left column (genres) - first half
+        x_left = padding
+        y_start = context.width - padding - self.font_size
+
+        for i, line in enumerate(left_lines):
+            y = y_start - (i * line_height)
+            if y < padding:  # Check bottom boundary
+                break
+            c.drawString(x_left, y, line)
+
+        # Draw right column (metadata) - second half
+        x_right = context.height / 2 + padding
+        y_start = context.width - padding - self.font_size
+
+        for i, line in enumerate(right_lines):
+            y = y_start - (i * line_height)
+            if y < padding:  # Check bottom boundary
+                break
+            c.drawString(x_right, y, line)
 
         c.restoreState()

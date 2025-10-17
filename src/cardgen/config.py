@@ -46,6 +46,7 @@ class DefaultThemeConfig(BaseModel):
     """Default theme configuration."""
 
     font_family: str = "Helvetica"
+    monospace_font_family: str = "Iosevka"  # For fixed-width content (track numbers, durations)
     title_font_size: int = 14
     artist_font_size: int = 12
     track_font_size: int = 10
@@ -53,6 +54,7 @@ class DefaultThemeConfig(BaseModel):
     background_color: list[float] = [1.0, 1.0, 1.0]
     text_color: list[float] = [0.0, 0.0, 0.0]
     accent_color: list[float] = [0.2, 0.2, 0.2]
+    track_title_overflow: str = "truncate"  # "truncate" or "wrap"
 
 
 class ThemesConfig(BaseModel):

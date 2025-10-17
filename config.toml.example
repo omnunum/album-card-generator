@@ -30,11 +30,24 @@ simple = "{album}.pdf"
 
 # Default Theme Configuration
 [themes.default]
+# Font for variable-width text (titles, artist names, track titles)
+# Built-in options: "Helvetica", "Times-Roman", "Courier"
 font_family = "Helvetica"
+
+# Font for fixed-width text (track numbers, durations) - ensures perfect alignment
+# Requires iosevka-regular.ttf and iosevka-bold.ttf in src/cardgen/fonts/
+# Falls back to "Courier" if Iosevka fonts not found
+monospace_font_family = "Iosevka"
+
 title_font_size = 14
 artist_font_size = 12
 track_font_size = 10
 metadata_font_size = 8
+
+# Track title overflow handling when title collides with duration
+# "truncate" - Add ellipsis (...) and cut off the title
+# "wrap" - Line break and indent continuation on next line
+track_title_overflow = "truncate"
 
 # Color scheme (RGB 0-1 format)
 background_color = [1.0, 1.0, 1.0]  # white

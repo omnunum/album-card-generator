@@ -25,6 +25,7 @@ class FontConfig:
     """Font configuration for theme."""
 
     family: str
+    monospace_family: str  # For fixed-width content (track numbers, durations)
     title_size: int
     artist_size: int
     track_size: int
@@ -44,6 +45,7 @@ class RendererContext:
     color_scheme: "ColorScheme"
     padding: float  # Padding in points
     dpi: int  # DPI for image rendering
+    track_title_overflow: str = "truncate"  # "truncate" or "wrap"
 
 
 class CardSection(ABC):
@@ -101,6 +103,16 @@ class Theme(ABC):
 
         Returns:
             Padding in inches.
+        """
+        pass
+
+    @abstractmethod
+    def get_track_title_overflow(self) -> str:
+        """
+        Get track title overflow handling mode.
+
+        Returns:
+            "truncate" or "wrap".
         """
         pass
 

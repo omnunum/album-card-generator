@@ -73,12 +73,22 @@ class NavidromeClient:
         if album_data.record_labels and len(album_data.record_labels) > 0:
             label = album_data.record_labels[0].name if hasattr(album_data.record_labels[0], 'name') else str(album_data.record_labels[0])
 
+        # Parse genres - use genres field if available, fallback to genre field
+        genres: list[str] = []
+        if hasattr(album_data, 'genres') and album_data.genres:
+            # Use the genres list (plural) - each item has a 'name' attribute
+            genres = [g.name for g in album_data.genres if hasattr(g, 'name')]
+        elif album_data.genre:
+            # Fallback to genre field (singular) - may be comma-separated
+            raw_genres = album_data.genre.replace(";", ",").split(",")
+            genres = [g.strip() for g in raw_genres if g.strip()]
+
         return Album(
             id=album_data.id,
             title=album_data.name or "Unknown Album",
             artist=album_data.artist or "Unknown Artist",
             year=album_data.year,
-            genre=album_data.genre,
+            genres=genres,
             label=label,
             cover_art=cover_art,
             tracks=tracks,

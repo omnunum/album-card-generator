@@ -8,6 +8,7 @@ from cardgen.api import NavidromeClient
 from cardgen.config import format_output_name, load_config
 from cardgen.design import JCard4Panel
 from cardgen.design.themes import DefaultTheme
+from cardgen.fonts import register_fonts
 from cardgen.render import PDFRenderer
 from cardgen.utils.dimensions import PAGE_SIZES
 
@@ -16,7 +17,8 @@ from cardgen.utils.dimensions import PAGE_SIZES
 @click.version_option()
 def main() -> None:
     """Generate printable cassette j-cards from Navidrome albums and playlists."""
-    pass
+    # Register custom fonts at startup
+    register_fonts()
 
 
 @main.command()

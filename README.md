@@ -24,6 +24,13 @@ cd album-card-generator
 pip install -e .
 ```
 
+3. Download Iosevka fonts:
+```bash
+./scripts/download-fonts.sh
+```
+
+This will download and install the default Iosevka font used for j-cards. The condensed monospace design helps fit long track titles. See `src/cardgen/fonts/README.md` for details.
+
 ## Configuration
 
 1. Copy the example config:

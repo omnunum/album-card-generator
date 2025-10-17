@@ -2,6 +2,7 @@
 
 from cardgen.config import DefaultThemeConfig
 from cardgen.design.base import ColorScheme, FontConfig, Theme
+from cardgen.fonts import is_iosevka_available
 
 
 class DefaultTheme(Theme):
@@ -28,8 +29,14 @@ class DefaultTheme(Theme):
         Returns:
             FontConfig object.
         """
+        # Use Iosevka if available, otherwise fall back to Courier
+        monospace_family = self.config.monospace_font_family
+        if monospace_family == "Iosevka" and not is_iosevka_available():
+            monospace_family = "Courier"
+
         return FontConfig(
             family=self.config.font_family,
+            monospace_family=monospace_family,
             title_size=self.config.title_font_size,
             artist_size=self.config.artist_font_size,
             track_size=self.config.track_font_size,
@@ -57,3 +64,12 @@ class DefaultTheme(Theme):
             Padding in inches.
         """
         return 0.125  # 1/8 inch padding
+
+    def get_track_title_overflow(self) -> str:
+        """
+        Get track title overflow handling mode.
+
+        Returns:
+            "truncate" or "wrap".
+        """
+        return self.config.track_title_overflow

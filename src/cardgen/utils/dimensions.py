@@ -36,12 +36,12 @@ def get_page_size(name: str) -> PageSize:
 
 # Standard cassette j-card dimensions (in inches)
 JCARD_SPINE_WIDTH = 0.5
-JCARD_BACK_WIDTH = 1.0  # Back panel is narrower than front
+JCARD_BACK_WIDTH = 0.667  # Back panel (metadata section) - 2/3 inch
 JCARD_HEIGHT = 4.0
 JCARD_PANEL_WIDTH = 2.5  # Front and inside panels
 
 # 4-panel j-card: Inside | Back | Spine | Front
-# Total width: 2.5" + 1.0" + 0.5" + 2.5" = 6.5"
+# Total width: 2.5" + 0.667" + 0.5" + 2.5" = 6.167"
 JCARD_4_PANEL_WIDTH = JCARD_PANEL_WIDTH + JCARD_BACK_WIDTH + JCARD_SPINE_WIDTH + JCARD_PANEL_WIDTH
 JCARD_4_PANEL_HEIGHT = JCARD_HEIGHT
 

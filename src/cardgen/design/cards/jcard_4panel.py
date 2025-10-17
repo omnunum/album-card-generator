@@ -3,6 +3,7 @@
 from cardgen.api.models import Album
 from cardgen.design.base import Card, CardSection, Theme
 from cardgen.design.sections import CoverSection, MetadataSection, SpineSection, TracklistSection
+from cardgen.design.sections.spine import SpineTextItem
 from cardgen.utils.dimensions import (
     JCARD_BACK_WIDTH,
     JCARD_PANEL_WIDTH,
@@ -11,6 +12,7 @@ from cardgen.utils.dimensions import (
     get_jcard_4_panel_dimensions,
     get_panel_dimensions,
 )
+from cardgen.utils.genres import build_genre_tree
 from cardgen.utils.tape import split_tracks_by_tape_sides
 
 
@@ -66,38 +68,29 @@ class JCard4Panel(Card):
             )
         )
 
-        # Back panel - Metadata (genres, label)
-        metadata_items: list[str] = []
-        if self.album.genre:
-            metadata_items.append(f"Genre: {self.album.genre}")
-        if self.album.label:
-            metadata_items.append(f"Label: {self.album.label}")
-        if self.album.year:
-            metadata_items.append(f"Year: {self.album.year}")
-
-        # Add total duration
-        metadata_items.append(f"Duration: {self.album.format_total_duration()}")
-
         sections.append(
             MetadataSection(
                 name="back",
                 dimensions=self.panels["back"],
-                items=metadata_items,
+                album=self.album,
+                font_size=9.0,  # Increased from 5.0, fits better than 10.0
+                padding_override=0.02,  # Minimal padding for maximum space
             )
         )
 
-        # Spine panel - Artist, Title, Year (vertical text)
-        spine_text: list[str] = []
-        spine_text.append(self.album.artist)
-        spine_text.append(self.album.title)
+        # Spine panel - Artist, Title (bold), Year (vertical text)
+        spine_items: list[SpineTextItem] = []
+        spine_items.append(SpineTextItem(text=self.album.artist))
+        spine_items.append(SpineTextItem(text=self.album.title, bold=True))
         if self.album.year:
-            spine_text.append(str(self.album.year))
+            spine_items.append(SpineTextItem(text=str(self.album.year)))
 
         sections.append(
             SpineSection(
                 name="spine",
                 dimensions=self.panels["spine"],
-                text_lines=spine_text,
+                text_lines=spine_items,
+                cover_art=self.album.cover_art,
             )
         )
 

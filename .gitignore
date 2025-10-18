@@ -44,3 +44,6 @@ htmlcov/
 # Output files
 *.pdf
 output/
+
+**/fonts/*.ttf
+**/fonts/*.otf

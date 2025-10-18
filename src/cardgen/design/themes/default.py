@@ -67,7 +67,7 @@ class DefaultTheme(Theme):
 
     def get_track_title_overflow(self) -> str:
         """
-        Get track title overflow handling mode.
+        Get track title overflow mode for tracklists.
 
         Returns:
             "truncate" or "wrap".

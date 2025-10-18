@@ -3,6 +3,7 @@
 from urllib.parse import urlparse
 
 import libopensonic
+import requests
 
 from cardgen.api.models import Album, Playlist, Track
 from cardgen.config import NavidromeConfig
@@ -31,6 +32,9 @@ class NavidromeClient:
             password=config.password,
             port=port,
         )
+
+        # JWT token cache for Navidrome native API access
+        self._jwt_token: str | None = None
 
     def get_album(self, album_id: str) -> Album:
         """
@@ -83,6 +87,18 @@ class NavidromeClient:
             raw_genres = album_data.genre.replace(";", ",").split(",")
             genres = [g.strip() for g in raw_genres if g.strip()]
 
+        # Fetch RYM descriptors from raw tags (using first track)
+        rym_descriptors = None
+        if album_data.song and len(album_data.song) > 0:
+            try:
+                first_song_id = album_data.song[0].id
+                raw_tags = self.get_raw_tags(first_song_id)
+                if "rym_descriptors" in raw_tags:
+                    rym_descriptors = raw_tags["rym_descriptors"]
+            except Exception:
+                # Silently ignore if raw tags fetch fails
+                pass
+
         return Album(
             id=album_data.id,
             title=album_data.name or "Unknown Album",
@@ -92,6 +108,7 @@ class NavidromeClient:
             label=label,
             cover_art=cover_art,
             tracks=tracks,
+            rym_descriptors=rym_descriptors,
         )
 
     def get_playlist(self, playlist_id: str) -> Playlist:
@@ -166,6 +183,84 @@ class NavidromeClient:
         """
         response = self.conn.get_cover_art(cover_id, size=size)
         return response.content
+
+    def _authenticate_jwt(self) -> str:
+        """
+        Authenticate with Navidrome native API and get JWT token.
+
+        Returns:
+            JWT bearer token for native API access.
+
+        Raises:
+            Exception: If authentication fails.
+        """
+        auth_url = f"{self.config.url}/auth/login"
+
+        # Build authentication request
+        auth_data = {
+            "username": self.config.username,
+            "password": self.config.password,
+        }
+
+        headers = {
+            "content-type": "application/json",
+            "accept": "*/*",
+        }
+
+        response = requests.post(auth_url, json=auth_data, headers=headers)
+        response.raise_for_status()
+
+        data = response.json()
+        if "token" not in data:
+            raise Exception("Authentication failed: no token in response")
+
+        return data["token"]
+
+    def _get_jwt_token(self) -> str:
+        """
+        Get cached JWT token or authenticate if needed.
+
+        Returns:
+            JWT bearer token.
+        """
+        if self._jwt_token is None:
+            self._jwt_token = self._authenticate_jwt()
+        return self._jwt_token
+
+    def get_raw_tags(self, song_id: str) -> dict:
+        """
+        Fetch raw ID3 tags for a song using Navidrome's inspect API.
+
+        Args:
+            song_id: Song/track ID from Navidrome.
+
+        Returns:
+            Dictionary containing raw tags.
+
+        Raises:
+            Exception: If song not found or API error occurs.
+        """
+        # Build the inspect endpoint URL
+        inspect_url = f"{self.config.url}/api/inspect"
+
+        # Get JWT token for authentication
+        token = self._get_jwt_token()
+
+        # Build authenticated request with JWT bearer token
+        headers = {
+            "x-nd-authorization": f"Bearer {token}",
+            "accept": "application/json",
+        }
+
+        params = {
+            "id": song_id,
+        }
+
+        response = requests.get(inspect_url, params=params, headers=headers)
+        response.raise_for_status()
+
+        data = response.json()
+        return data.get("rawTags", {})
 
     @staticmethod
     def extract_id_from_url(url: str) -> tuple[str, str]:

@@ -2,10 +2,11 @@
 
 from cardgen.api.models import Album
 from cardgen.design.base import Card, CardSection, Theme
-from cardgen.design.sections import CoverSection, MetadataSection, SpineSection, TracklistSection
+from cardgen.design.sections import CoverSection, GenreDescriptorsSection, MetadataSection, SpineSection, TracklistSection
 from cardgen.design.sections.spine import SpineTextItem
 from cardgen.utils.dimensions import (
     JCARD_BACK_WIDTH,
+    JCARD_HEIGHT,
     JCARD_PANEL_WIDTH,
     JCARD_SPINE_WIDTH,
     Dimensions,
@@ -65,6 +66,7 @@ class JCard4Panel(Card):
                 side_a=self.side_a,
                 side_b=self.side_b,
                 title="Tracklist",
+                track_title_overflow=self.theme.get_track_title_overflow(),
             )
         )
 

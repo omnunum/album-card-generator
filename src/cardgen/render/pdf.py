@@ -64,6 +64,53 @@ class PDFRenderer:
         # Save PDF
         c.save()
 
+    def render_cards(self, cards: list[Card], output_path: Path) -> None:
+        """
+        Render multiple cards to PDF file, stacked vertically (2 per page).
+
+        Cards are aligned to the top of each half-page slot, not centered.
+
+        Args:
+            cards: List of Card objects to render.
+            output_path: Path to output PDF file.
+        """
+        # Create canvas with specified page size (landscape for horizontal layout)
+        page_size_pts = (inches_to_points(self.page_height), inches_to_points(self.page_width))
+        c = canvas.Canvas(str(output_path), pagesize=page_size_pts)
+
+        # Process cards 2 at a time (one page)
+        for page_idx in range(0, len(cards), 2):
+            cards_on_page = cards[page_idx:page_idx + 2]
+
+            # Half page height for vertical stacking
+            half_page_height = self.page_width / 2  # page is rotated
+
+            for slot_idx, card in enumerate(cards_on_page):
+                card_dims = card.get_dimensions()
+
+                # Center horizontally, align to top of slot
+                offset_x = (self.page_height - card_dims.width) / 2
+                # Top slot (slot 0) or bottom slot (slot 1)
+                slot_y = self.page_width - (slot_idx + 1) * half_page_height
+                # Align to top of slot with small margin
+                offset_y = slot_y + half_page_height - card_dims.height - 0.125  # 0.125" top margin
+
+                # Draw crop marks and fold guides if enabled
+                if self.include_crop_marks:
+                    self._draw_guides(c, card_dims, offset_x, offset_y, card.get_fold_lines())
+
+                # Draw each section
+                sections = card.get_sections()
+                for section in sections:
+                    self._render_section(c, section, offset_x, offset_y, card.theme)
+
+            # Start new page if there are more cards
+            if page_idx + 2 < len(cards):
+                c.showPage()
+
+        # Save PDF
+        c.save()
+
     def _render_section(
         self,
         c: canvas.Canvas,
@@ -99,7 +146,6 @@ class PDFRenderer:
             color_scheme=theme.get_color_scheme(),
             padding=inches_to_points(theme.get_padding()),
             dpi=self.dpi,
-            track_title_overflow=theme.get_track_title_overflow(),
         )
 
         # Polymorphic call - each section renders itself

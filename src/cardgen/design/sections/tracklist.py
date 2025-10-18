@@ -29,6 +29,7 @@ class TracklistSection(CardSection):
         side_a: TapeSide,
         side_b: TapeSide,
         title: str = "Tracklist",
+        track_title_overflow: str = "truncate",
     ) -> None:
         """
         Initialize tracklist section.
@@ -39,11 +40,13 @@ class TracklistSection(CardSection):
             side_a: Tape Side A with tracks.
             side_b: Tape Side B with tracks.
             title: Section title.
+            track_title_overflow: How to handle long track titles ("truncate" or "wrap").
         """
         super().__init__(name, dimensions)
         self.side_a = side_a
         self.side_b = side_b
         self.title = title
+        self.track_title_overflow = track_title_overflow
 
     def render(self, context: RendererContext) -> None:
         """Render track listing with Side A/B and duration minimap."""
@@ -62,8 +65,7 @@ class TracklistSection(CardSection):
         text_y = context.y + context.height - context.padding - context.font_config.title_size
         c.drawString(context.x + context.padding, text_y, self.title)
 
-        # Calculate optimal sizing to fill ALL vertical space with all tracks
-        # Simple approach: total_lines * (font_size + spacing) = available_height
+        # Calculate optimal font size that fits with proportional line spacing (25% of font size)
         available_height = text_y - context.font_config.title_size - 10 - context.y - context.padding
 
         side_a_track_count = len(self.side_a.tracks if self.side_a else [])
@@ -73,12 +75,12 @@ class TracklistSection(CardSection):
         num_headers = 2 if (self.side_a and self.side_b) else 1
         total_lines = total_tracks + num_headers + 1  # tracks + headers + gap between sides
 
-        # Find largest font size where all lines fit: size * total_lines + spacing * total_lines <= available
-        track_size, line_spacing = self._calculate_optimal_line_size(available_height, total_lines)
-
-        # Debug output
-        import sys
-        print(f"DEBUG: available={available_height:.1f}pt, lines={total_lines}, size={track_size}pt, spacing={line_spacing:.1f}pt", file=sys.stderr)
+        # Find largest font size that fits with 25% line spacing
+        # available = total_lines * (font_size + 0.25 * font_size) = total_lines * 1.25 * font_size
+        track_size = available_height / (total_lines * 1.25)
+        # Clamp to reasonable range
+        track_size = max(8.0, min(12.0, track_size))
+        line_spacing = track_size * 0.25
 
         c.setFont(context.font_config.family, track_size)
         text_y -= track_size + 10
@@ -196,7 +198,7 @@ class TracklistSection(CardSection):
 
             # Handle overflow based on mode
             if track_text_width > available_track_width:
-                if context.track_title_overflow == "truncate":
+                if self.track_title_overflow == "truncate":
                     # Truncate with ellipsis - only truncate the title, not the track number
                     available_for_title = available_track_width - track_num_width
                     truncated_title = self._truncate_with_ellipsis(

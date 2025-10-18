@@ -45,7 +45,6 @@ class RendererContext:
     color_scheme: "ColorScheme"
     padding: float  # Padding in points
     dpi: int  # DPI for image rendering
-    track_title_overflow: str = "truncate"  # "truncate" or "wrap"
 
 
 class CardSection(ABC):
@@ -109,7 +108,7 @@ class Theme(ABC):
     @abstractmethod
     def get_track_title_overflow(self) -> str:
         """
-        Get track title overflow handling mode.
+        Get track title overflow mode for tracklists.
 
         Returns:
             "truncate" or "wrap".

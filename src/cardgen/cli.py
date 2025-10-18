@@ -6,7 +6,7 @@ import click
 
 from cardgen.api import NavidromeClient
 from cardgen.config import format_output_name, load_config
-from cardgen.design import JCard4Panel
+from cardgen.design import JCard4Panel, create_jcard_5panel
 from cardgen.design.themes import DefaultTheme
 from cardgen.fonts import register_fonts
 from cardgen.render import PDFRenderer
@@ -22,7 +22,7 @@ def main() -> None:
 
 
 @main.command()
-@click.argument("url")
+@click.argument("urls", nargs=-1, required=True)
 @click.option(
     "-o",
     "--output",
@@ -43,7 +43,7 @@ def main() -> None:
 @click.option(
     "--card-type",
     type=str,
-    help="Card type override (jcard_4panel). Uses config default if not specified.",
+    help="Card type override (jcard_4panel, jcard_5panel). Uses config default if not specified.",
 )
 @click.option(
     "--theme",
@@ -72,7 +72,7 @@ def main() -> None:
     help="Cassette tape length in minutes (default: 90 for C90).",
 )
 def album(
-    url: str,
+    urls: tuple[str, ...],
     output: Path | None,
     output_name: str,
     config: Path | None,
@@ -84,30 +84,38 @@ def album(
     tape_length: int,
 ) -> None:
     """
-    Generate j-card from Navidrome album.
+    Generate j-cards from one or more Navidrome albums.
+
+    Cards are stacked vertically (2 per page) for efficient printing.
 
     URL can be either:
     - Simple format: album/abc123
     - Full URL: http://server/app/#/album/abc123
+
+    Multiple albums can be specified to print on one PDF.
     """
     try:
         # Load configuration
         cfg = load_config(config)
 
-        # Extract album ID from URL
-        resource_type, resource_id = NavidromeClient.extract_id_from_url(url)
-
-        if resource_type != "album":
-            click.echo(f"Error: URL is for a {resource_type}, not an album. Use `cardgen playlist` instead.", err=True)
-            raise SystemExit(1)
-
         # Initialize Navidrome client
         client = NavidromeClient(cfg.navidrome)
 
-        # Fetch album data
-        click.echo(f"Fetching album {resource_id}...")
-        album_data = client.get_album(resource_id)
-        click.echo(f"Found: {album_data.artist} - {album_data.title}")
+        # Fetch all albums
+        albums = []
+        for url in urls:
+            # Extract album ID from URL
+            resource_type, resource_id = NavidromeClient.extract_id_from_url(url)
+
+            if resource_type != "album":
+                click.echo(f"Error: URL is for a {resource_type}, not an album. Use `cardgen playlist` instead.", err=True)
+                raise SystemExit(1)
+
+            # Fetch album data
+            click.echo(f"Fetching album {resource_id}...")
+            album_data = client.get_album(resource_id)
+            click.echo(f"  Found: {album_data.artist} - {album_data.title}")
+            albums.append(album_data)
 
         # Determine output path
         if output is None:
@@ -116,18 +124,22 @@ def album(
                 click.echo(f"Error: Unknown output template '{output_name}'", err=True)
                 raise SystemExit(1)
 
+            # Use first album for filename
             output_filename = format_output_name(
                 template,
-                album_data.artist,
-                album_data.title,
-                album_data.year,
+                albums[0].artist,
+                albums[0].title,
+                albums[0].year,
             )
+            # If multiple albums, add suffix
+            if len(albums) > 1:
+                output_filename = output_filename.replace(".pdf", f"_and_{len(albums)-1}_more.pdf")
             output = Path(output_filename)
 
         # Select card type
-        card_type = card_type or cfg.output.default_card_type
-        if card_type != "jcard_4panel":
-            click.echo(f"Error: Unsupported card type '{card_type}'. Currently only 'jcard_4panel' is supported.", err=True)
+        selected_card_type = card_type or cfg.output.default_card_type
+        if selected_card_type not in ("jcard_4panel", "jcard_5panel"):
+            click.echo(f"Error: Unsupported card type '{selected_card_type}'. Supported: jcard_4panel, jcard_5panel", err=True)
             raise SystemExit(1)
 
         # Select theme
@@ -138,8 +150,14 @@ def album(
             click.echo(f"Error: Unknown theme '{theme_name}'. Currently only 'default' is supported.", err=True)
             raise SystemExit(1)
 
-        # Create card
-        card = JCard4Panel(album_data, theme_obj, tape_length_minutes=tape_length)
+        # Create cards for each album
+        cards = []
+        for album_data in albums:
+            if selected_card_type == "jcard_4panel":
+                card = JCard4Panel(album_data, theme_obj, tape_length_minutes=tape_length)
+            else:  # jcard_5panel
+                card = create_jcard_5panel(album_data, theme_obj, tape_length_minutes=tape_length)
+            cards.append(card)
 
         # Render PDF
         render_dpi = dpi or cfg.output.dpi
@@ -148,10 +166,10 @@ def album(
 
         renderer = PDFRenderer(dpi=render_dpi, include_crop_marks=include_marks, page_size=selected_page_size)
 
-        click.echo(f"Generating PDF at {render_dpi} DPI on {selected_page_size} page...")
-        renderer.render_card(card, output)
+        click.echo(f"Generating PDF with {len(cards)} card(s) at {render_dpi} DPI on {selected_page_size} page...")
+        renderer.render_cards(cards, output)
 
-        click.echo(f"✓ J-card saved to: {output}")
+        click.echo(f"✓ J-card(s) saved to: {output}")
 
     except FileNotFoundError as e:
         click.echo(f"Error: {e}", err=True)

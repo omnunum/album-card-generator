@@ -37,6 +37,7 @@ class Album:
     label: str | None
     cover_art: bytes  # Raw image data
     tracks: list[Track]
+    rym_descriptors: list[str] | None = None  # RateYourMusic descriptors from custom tags
 
     def total_duration(self) -> int:
         """

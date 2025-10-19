@@ -218,12 +218,12 @@ def _render_tree(tree: dict[str, Any], prefix: str = "", is_last: bool = True) -
             lines.append(genre)
         else:
             # Child level - use tree connectors
-            connector = "└─ " if is_last_item else "├─ "
+            connector = "└─" if is_last_item else "├─"
             lines.append(f"{prefix}{connector}{genre}")
 
         # Recursively render children
         if children:
-            new_prefix = prefix + ("   " if is_last_item else "│  ")
+            new_prefix = prefix + ("  " if is_last_item else "│ ")
             child_output = _render_tree(children, new_prefix, is_last_item)
             if child_output:
                 lines.append(child_output)

@@ -76,7 +76,6 @@ class JCard4Panel(Card):
                 dimensions=self.panels["back"],
                 album=self.album,
                 font_size=9.0,  # Increased from 5.0, fits better than 10.0
-                padding_override=0.02,  # Minimal padding for maximum space
             )
         )
 

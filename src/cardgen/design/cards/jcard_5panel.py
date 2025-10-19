@@ -53,7 +53,6 @@ def create_jcard_5panel(
             dimensions=Dimensions(width=JCARD_BACK_WIDTH, height=JCARD_HEIGHT),
             album=album,
             font_size=9.0,
-            padding_override=0.02,
         )
     )
 

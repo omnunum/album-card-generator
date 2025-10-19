@@ -38,6 +38,12 @@ class MetadataSection(CardSection):
         """Render metadata content as two columns of vertical text (rotated 90 degrees)."""
         c = context.canvas
 
+        # Use custom padding if provided, otherwise use theme default
+        if self.padding_override is not None:
+            padding = self.padding_override * 72  # Convert inches to points
+        else:
+            padding = context.padding
+
         # Process album data into left and right columns
         # Left column: Leaf genres
         leaf_genres = get_leaf_genres(self.album.genres)
@@ -61,9 +67,6 @@ class MetadataSection(CardSection):
         # Set up drawing
         c.setFillColor(Color(*context.color_scheme.text))
         c.setFont(context.font_config.family, self.font_size)
-
-        # Use custom padding if provided, otherwise use theme default
-        padding = self.padding_override if self.padding_override is not None else context.padding
 
         line_height = self.font_size * 1.2  # 20% line spacing
 

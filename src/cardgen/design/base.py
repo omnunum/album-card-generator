@@ -2,13 +2,18 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from cardgen.api.models import Album
 from cardgen.utils.dimensions import Dimensions
 
 if TYPE_CHECKING:
     from reportlab.pdfgen import canvas
+
+# Type aliases for cover art options
+CoverArtMode = Literal["square", "fullscale"]
+CoverArtAlign = Literal["center", "left", "right"]
+TrackTitleOverflow = Literal["truncate", "wrap"]
 
 
 @dataclass
@@ -18,6 +23,10 @@ class ColorScheme:
     background: tuple[float, float, float]  # RGB 0-1
     text: tuple[float, float, float]  # RGB 0-1
     accent: tuple[float, float, float]  # RGB 0-1
+    # Gradient support
+    gradient_enabled: bool = False  # Whether to use gradient background
+    gradient_start: tuple[float, float, float] | None = None  # RGB 0-1 for gradient start
+    gradient_end: tuple[float, float, float] | None = None  # RGB 0-1 for gradient end
 
 
 @dataclass
@@ -106,12 +115,32 @@ class Theme(ABC):
         pass
 
     @abstractmethod
-    def get_track_title_overflow(self) -> str:
+    def get_track_title_overflow(self) -> TrackTitleOverflow:
         """
         Get track title overflow mode for tracklists.
 
         Returns:
             "truncate" or "wrap".
+        """
+        pass
+
+    @abstractmethod
+    def get_cover_art_mode(self) -> CoverArtMode:
+        """
+        Get cover art display mode.
+
+        Returns:
+            "square" or "fullscale".
+        """
+        pass
+
+    @abstractmethod
+    def get_cover_art_align(self) -> CoverArtAlign:
+        """
+        Get cover art horizontal alignment for fullscale mode.
+
+        Returns:
+            "center", "left", or "right".
         """
         pass
 

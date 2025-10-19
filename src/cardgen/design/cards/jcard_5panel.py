@@ -81,6 +81,8 @@ def create_jcard_5panel(
             cover_art=album.cover_art,
             title=album.title,
             artist=album.artist,
+            cover_art_mode=theme.get_cover_art_mode(),
+            cover_art_align=theme.get_cover_art_align(),
         )
     )
 

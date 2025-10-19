@@ -4,7 +4,7 @@ from io import BytesIO
 from pathlib import Path
 
 from PIL import Image as PILImage
-from reportlab.lib.colors import Color, black, lightgrey, gray
+from reportlab.lib.colors import gray
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import inch
 from reportlab.lib.utils import ImageReader
@@ -148,8 +148,78 @@ class PDFRenderer:
             dpi=self.dpi,
         )
 
+        # Draw gradient background if enabled
+        color_scheme = theme.get_color_scheme()
+        if color_scheme.gradient_enabled and color_scheme.gradient_start and color_scheme.gradient_end:
+            self._draw_gradient_background(
+                c, x, y, width, height, color_scheme.gradient_start, color_scheme.gradient_end
+            )
+
         # Polymorphic call - each section renders itself
         section.render(context)
+
+    def _draw_gradient_background(
+        self,
+        c: canvas.Canvas,
+        x: float,
+        y: float,
+        width: float,
+        height: float,
+        start_color: tuple[float, float, float],
+        end_color: tuple[float, float, float],
+    ) -> None:
+        """
+        Draw a vertical gradient background using a PIL-generated image.
+
+        Args:
+            c: ReportLab canvas.
+            x: X position in points.
+            y: Y position in points.
+            width: Width in points.
+            height: Height in points.
+            start_color: RGB tuple (0-1) for top of gradient.
+            end_color: RGB tuple (0-1) for bottom of gradient.
+        """
+        # Create gradient image using PIL for smooth gradients
+        # Use modest resolution (height in pixels)
+        img_height = int(height)
+        img_width = int(width)
+
+        # Create new image
+        img = PILImage.new('RGB', (img_width, img_height))
+        pixels = img.load()
+
+        # Convert colors from 0-1 to 0-255
+        start_r = int(start_color[0] * 255)
+        start_g = int(start_color[1] * 255)
+        start_b = int(start_color[2] * 255)
+
+        end_r = int(end_color[0] * 255)
+        end_g = int(end_color[1] * 255)
+        end_b = int(end_color[2] * 255)
+
+        # Generate gradient pixel by pixel
+        for py in range(img_height):
+            # Calculate interpolation factor (0 to 1 from top to bottom)
+            t = py / img_height
+
+            # Interpolate colors
+            r = int(start_r + t * (end_r - start_r))
+            g = int(start_g + t * (end_g - start_g))
+            b = int(start_b + t * (end_b - start_b))
+
+            # Fill entire row with this color
+            for px in range(img_width):
+                pixels[px, py] = (r, g, b)
+
+        # Save to bytes buffer and create ImageReader
+        img_buffer = BytesIO()
+        img.save(img_buffer, format='PNG')
+        img_buffer.seek(0)
+        img_reader = ImageReader(img_buffer)
+
+        # Draw image
+        c.drawImage(img_reader, x, y, width=width, height=height, preserveAspectRatio=False)
 
     def _draw_guides(
         self,

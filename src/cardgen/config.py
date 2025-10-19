@@ -6,6 +6,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field, HttpUrl
 
+from cardgen.design.base import CoverArtAlign, CoverArtMode, TrackTitleOverflow
+
 
 class NavidromeConfig(BaseModel):
     """Navidrome server configuration."""
@@ -54,7 +56,14 @@ class DefaultThemeConfig(BaseModel):
     background_color: list[float] = [1.0, 1.0, 1.0]
     text_color: list[float] = [0.0, 0.0, 0.0]
     accent_color: list[float] = [0.2, 0.2, 0.2]
-    track_title_overflow: str = "truncate"  # "truncate" or "wrap"
+    track_title_overflow: TrackTitleOverflow = "truncate"  # "truncate" or "wrap"
+    # Gradient background options
+    use_gradient: bool = False  # Extract colors from album art for gradient background
+    gradient_text_color: list[float] = [1.0, 1.0, 1.0]  # White text for gradient mode
+    gradient_accent_color: list[float] = [0.8, 0.8, 0.8]  # Light gray for gradient mode
+    # Cover art display options
+    cover_art_mode: CoverArtMode = "square"  # "square" or "fullscale" (top-to-bottom with crop)
+    cover_art_align: CoverArtAlign = "center"  # "center", "left", or "right" (for fullscale mode)
 
 
 class ThemesConfig(BaseModel):

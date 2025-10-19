@@ -104,6 +104,8 @@ class JCard4Panel(Card):
                 cover_art=self.album.cover_art,
                 title=self.album.title,
                 artist=self.album.artist,
+                cover_art_mode=self.theme.get_cover_art_mode(),
+                cover_art_align=self.theme.get_cover_art_align(),
             )
         )
 

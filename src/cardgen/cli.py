@@ -46,9 +46,9 @@ def main() -> None:
     help="Card type override (jcard_4panel, jcard_5panel). Uses config default if not specified.",
 )
 @click.option(
-    "--theme",
-    type=str,
-    help="Theme override (default). Uses config default if not specified.",
+    "--gradient",
+    is_flag=True,
+    help="Use gradient background with colors extracted from album art.",
 )
 @click.option(
     "--dpi",
@@ -71,17 +71,29 @@ def main() -> None:
     default=90,
     help="Cassette tape length in minutes (default: 90 for C90).",
 )
+@click.option(
+    "--cover-art-mode",
+    type=click.Choice(["square", "fullscale"], case_sensitive=False),
+    help="Album art display mode: 'square' (default) or 'fullscale' (top-to-bottom with crop).",
+)
+@click.option(
+    "--cover-art-align",
+    type=click.Choice(["center", "left", "right"], case_sensitive=False),
+    help="Horizontal alignment for fullscale mode: 'center' (default), 'left', or 'right'.",
+)
 def album(
     urls: tuple[str, ...],
     output: Path | None,
     output_name: str,
     config: Path | None,
     card_type: str | None,
-    theme: str | None,
+    gradient: bool,
     dpi: int | None,
     no_crop_marks: bool,
     page_size: str | None,
     tape_length: int,
+    cover_art_mode: str | None,
+    cover_art_align: str | None,
 ) -> None:
     """
     Generate j-cards from one or more Navidrome albums.
@@ -142,17 +154,27 @@ def album(
             click.echo(f"Error: Unsupported card type '{selected_card_type}'. Supported: jcard_4panel, jcard_5panel", err=True)
             raise SystemExit(1)
 
-        # Select theme
-        theme_name = theme or cfg.output.default_theme
-        if theme_name == "default":
-            theme_obj = DefaultTheme(cfg.themes.default)
-        else:
-            click.echo(f"Error: Unknown theme '{theme_name}'. Currently only 'default' is supported.", err=True)
-            raise SystemExit(1)
-
-        # Create cards for each album
+        # Create cards for each album with optional gradient
         cards = []
+
         for album_data in albums:
+            # Create theme config with gradient enabled if flag is set
+            theme_config = cfg.themes.default
+            updates = {}
+            if gradient:
+                updates["use_gradient"] = True
+            if cover_art_mode:
+                updates["cover_art_mode"] = cover_art_mode
+            if cover_art_align:
+                updates["cover_art_align"] = cover_art_align
+
+            if updates:
+                theme_config = theme_config.model_copy(update=updates)
+
+            # Create theme (pass cover art for gradient extraction)
+            theme_obj = DefaultTheme(theme_config, cover_art=album_data.cover_art)
+
+            # Create card with theme
             if selected_card_type == "jcard_4panel":
                 card = JCard4Panel(album_data, theme_obj, tape_length_minutes=tape_length)
             else:  # jcard_5panel

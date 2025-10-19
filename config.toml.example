@@ -53,3 +53,9 @@ track_title_overflow = "truncate"
 background_color = [1.0, 1.0, 1.0]  # white
 text_color = [0.0, 0.0, 0.0]        # black
 accent_color = [0.2, 0.2, 0.2]      # dark gray
+
+# Gradient Background Options
+# Enable to extract colors from album art and create gradient backgrounds
+use_gradient = false
+gradient_text_color = [1.0, 1.0, 1.0]    # white text for gradient mode
+gradient_accent_color = [0.8, 0.8, 0.8]  # light gray for gradient mode

@@ -5,9 +5,10 @@ from io import BytesIO
 from reportlab.lib.colors import Color
 from reportlab.lib.utils import ImageReader
 
-from cardgen.design.base import CardSection, CoverArtAlign, CoverArtMode, RendererContext
+from cardgen.design.base import CardSection, RendererContext
 from cardgen.render.image import resize_and_crop_cover, resize_and_crop_cover_fullscale
-from cardgen.utils.dimensions import Dimensions, SAFE_MARGIN, inches_to_points
+from cardgen.types import CoverArtAlign, CoverArtMode
+from cardgen.utils.dimensions import SAFE_MARGIN, Dimensions, inches_to_points
 from cardgen.utils.text import calculate_max_font_size
 
 

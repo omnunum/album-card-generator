@@ -6,7 +6,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field, HttpUrl
 
-from cardgen.design.base import CoverArtAlign, CoverArtMode, TrackTitleOverflow
+from cardgen.types import CoverArtAlign, CoverArtMode, TrackTitleOverflow
 
 
 class NavidromeConfig(BaseModel):

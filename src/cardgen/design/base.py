@@ -2,18 +2,14 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
 from cardgen.api.models import Album
+from cardgen.types import CoverArtAlign, CoverArtMode, TrackTitleOverflow
 from cardgen.utils.dimensions import Dimensions
 
 if TYPE_CHECKING:
     from reportlab.pdfgen import canvas
-
-# Type aliases for cover art options
-CoverArtMode = Literal["square", "fullscale"]
-CoverArtAlign = Literal["center", "left", "right"]
-TrackTitleOverflow = Literal["truncate", "wrap"]
 
 
 @dataclass

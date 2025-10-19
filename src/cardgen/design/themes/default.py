@@ -1,15 +1,9 @@
 """Default theme implementation."""
 
 from cardgen.config import DefaultThemeConfig
-from cardgen.design.base import (
-    ColorScheme,
-    CoverArtAlign,
-    CoverArtMode,
-    FontConfig,
-    Theme,
-    TrackTitleOverflow,
-)
+from cardgen.design.base import ColorScheme, FontConfig, Theme
 from cardgen.fonts import is_iosevka_available
+from cardgen.types import CoverArtAlign, CoverArtMode, TrackTitleOverflow
 
 
 class DefaultTheme(Theme):

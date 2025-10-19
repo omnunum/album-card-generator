@@ -421,15 +421,44 @@ class TracklistSection(CardSection):
                         track_num_str, f"{context.font_config.monospace_family}-Bold", track_font_size
                     )
 
-                    # Horizontally center in segment, vertically center in minimap bar
-                    segment_middle_x = current_x + segment_width / 2
-                    text_x = segment_middle_x - track_num_width / 2
-                    text_y = y - height / 2 - track_font_size / 3  # Vertically center, adjust for baseline
-                    c.drawString(
-                        text_x,
-                        text_y,
-                        track_num_str,
-                    )
+                    # Check if the full track number fits in the segment
+                    if track_num_width <= segment_width - 2:  # 2pt padding
+                        # Full number fits - draw normally
+                        segment_middle_x = current_x + segment_width / 2
+                        text_x = segment_middle_x - track_num_width / 2
+                        text_y = y - height / 2 - track_font_size / 3  # Vertically center, adjust for baseline
+                        c.drawString(text_x, text_y, track_num_str)
+                    else:
+                        # Not enough space - show last digit with underlines for tens place
+                        last_digit = segment.track_number % 10
+                        tens_digit = segment.track_number // 10
+
+                        # Draw the last digit
+                        last_digit_str = str(last_digit)
+                        last_digit_width = c.stringWidth(
+                            last_digit_str, f"{context.font_config.monospace_family}-Bold", track_font_size
+                        )
+
+                        segment_middle_x = current_x + segment_width / 2
+                        text_x = segment_middle_x - last_digit_width / 2
+                        text_y = y - height / 2 - track_font_size / 3
+                        c.drawString(text_x, text_y, last_digit_str)
+
+                        # Draw underline(s) beneath the digit to represent tens place
+                        # Number of underlines = tens digit (1 for 10-19, 2 for 20-29, etc.)
+                        if tens_digit > 0:
+                            underline_y = text_y - 1  # Position underline just below the digit
+                            underline_width = last_digit_width
+                            underline_spacing = 1.5  # Spacing between multiple underlines
+
+                            for i in range(tens_digit):
+                                c.setLineWidth(0.5)
+                                c.line(
+                                    text_x,
+                                    underline_y - (i * underline_spacing),
+                                    text_x + underline_width,
+                                    underline_y - (i * underline_spacing)
+                                )
 
             # Draw vertical separator line (but not after the last segment)
             current_x += segment_width

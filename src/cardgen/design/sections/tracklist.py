@@ -30,6 +30,7 @@ class TracklistSection(CardSection):
         side_b: TapeSide,
         title: str = "Tracklist",
         track_title_overflow: str = "truncate",
+        min_char_spacing: float = -1.0,
     ) -> None:
         """
         Initialize tracklist section.
@@ -41,12 +42,14 @@ class TracklistSection(CardSection):
             side_b: Tape Side B with tracks.
             title: Section title.
             track_title_overflow: How to handle long track titles ("truncate" or "wrap").
+            min_char_spacing: Minimum character spacing for track titles (negative = compressed).
         """
         super().__init__(name, dimensions)
         self.side_a = side_a
         self.side_b = side_b
         self.title = title
         self.track_title_overflow = track_title_overflow
+        self.min_char_spacing = min_char_spacing
 
     def render(self, context: RendererContext) -> None:
         """Render track listing with Side A/B and duration minimap."""
@@ -171,9 +174,15 @@ class TracklistSection(CardSection):
         minimap_start_x = context.x + context.padding + label_width + minimap_left_margin
         minimap_available_width = text_width - label_width - minimap_left_margin
 
-        # Draw minimap aligned with the label baseline
-        # The minimap's top should align with the top of the text
-        minimap_top_y = text_y + track_size * 0.75  # Align minimap vertically with label (raised slightly)
+        # Align minimap centerline with label text centerline
+        # Text baseline is at text_y, text height is track_size
+        # Text center is approximately at: text_y + track_size / 2 (accounting for descenders)
+        # For better visual alignment, use text_y + track_size * 0.35 as the centerline
+        text_centerline = text_y + track_size * 0.35
+        # Minimap center should align with text center
+        # minimap_top_y - minimap_height/2 = text_centerline
+        minimap_top_y = text_centerline + minimap_height / 2
+
         self._draw_minimap(
             context,
             tape_side,
@@ -198,6 +207,7 @@ class TracklistSection(CardSection):
 
         for track in tape_side.tracks:
             # Format track number as right-aligned (e.g., ' 9' or '10')
+            # Split into number+period (monospace) and space (Helvetica for narrower spacing)
             track_num_text = f"{track.track_number:2d}."
             track_title_text = track.title
             duration_text = track.format_duration()
@@ -215,73 +225,57 @@ class TracklistSection(CardSection):
             gap_before_duration = 3  # points - small gap between title and duration
             available_track_width = duration_x - (context.x + context.padding) - gap_before_duration
 
-            # Calculate widths for track number (monospace) and title (regular font)
+            # Calculate widths for track number (monospace) + Helvetica space
             track_num_width = c.stringWidth(track_num_text, context.font_config.monospace_family, track_size)
-            track_title_width = c.stringWidth(track_title_text, context.font_config.family, track_size)
-            # Account for word spacing compression in track title
-            track_title_width += track_title_text.count(' ') * word_spacing
+            helvetica_space_width = c.stringWidth(" ", context.font_config.family, track_size)
+            total_track_num_width = track_num_width + helvetica_space_width
 
-            # Total track text width
-            track_text_width = track_num_width + track_title_width
+            # Calculate available widths for line 1 and line 2
+            line1_available_width = available_track_width - total_track_num_width
+            # Line 2: 4 monospace spaces (indent) to right padding
+            indent_width = c.stringWidth("    ", context.font_config.monospace_family, track_size)
+            line2_available_width = text_width - indent_width
 
-            # Handle overflow based on mode
-            if track_text_width > available_track_width:
-                if self.track_title_overflow == "truncate":
-                    # Truncate with ellipsis - only truncate the title, not the track number
-                    available_for_title = available_track_width - track_num_width
-                    truncated_title = self._truncate_with_ellipsis(
-                        c, track_title_text, available_for_title,
-                        context.font_config.family, track_size, word_spacing
-                    )
+            # Use adaptive fitting algorithm
+            line1_text, line2_text, char_spacing, line2_char_spacing = self._fit_track_title_adaptive(
+                c, track_title_text,
+                line1_available_width, line2_available_width,
+                context.font_config.family, track_size, word_spacing, self.min_char_spacing
+            )
 
-                    # Draw track number in monospace
-                    c.setFont(context.font_config.monospace_family, track_size)
-                    c.drawString(context.x + context.padding, text_y, track_num_text)
+            # Draw track number in monospace (without space)
+            c.setFont(context.font_config.monospace_family, track_size)
+            c.drawString(context.x + context.padding, text_y, track_num_text)
 
-                    # Draw truncated title in regular font
-                    c.setFont(context.font_config.family, track_size)
-                    c.drawString(context.x + context.padding + track_num_width, text_y, truncated_title, wordSpace=word_spacing)
-                else:  # wrap
-                    # Draw first line and wrap continuation
-                    # Calculate how much of the title fits on first line
-                    available_for_title = available_track_width - track_num_width
+            # Draw Helvetica space after track number
+            c.setFont(context.font_config.family, track_size)
+            c.drawString(context.x + context.padding + track_num_width, text_y, " ")
 
-                    first_line, remainder = self._split_text_for_wrap(
-                        c, track_title_text, available_for_title,
-                        context.font_config.family, track_size, word_spacing
-                    )
+            # Draw first line with character spacing (after the Helvetica space)
+            c.drawString(
+                context.x + context.padding + total_track_num_width, text_y, line1_text,
+                wordSpace=word_spacing, charSpace=char_spacing
+            )
 
-                    # Draw track number in monospace
-                    c.setFont(context.font_config.monospace_family, track_size)
-                    c.drawString(context.x + context.padding, text_y, track_num_text)
-
-                    # Draw first line of title in regular font
-                    c.setFont(context.font_config.family, track_size)
-                    c.drawString(context.x + context.padding + track_num_width, text_y, first_line, wordSpace=word_spacing)
-
-                    # Draw continuation on next line if there's a remainder
-                    if remainder:
-                        text_y -= track_size + line_spacing
-                        indent = "   "  # 3 spaces for indent
-                        continuation_text = self._truncate_with_ellipsis(
-                            c, indent + remainder, available_track_width,
-                            context.font_config.family, track_size, word_spacing
-                        )
-                        c.setFont(context.font_config.family, track_size)
-                        c.drawString(context.x + context.padding, text_y, continuation_text, wordSpace=word_spacing)
-            else:
-                # No overflow, draw normally
-                # Draw track number in monospace
-                c.setFont(context.font_config.monospace_family, track_size)
-                c.drawString(context.x + context.padding, text_y, track_num_text)
-
-                # Draw track title in regular font
-                c.setFont(context.font_config.family, track_size)
-                c.drawString(context.x + context.padding + track_num_width, text_y, track_title_text, wordSpace=word_spacing)
-
-            # Draw duration in monospace font
+            # Draw duration in monospace font (only on first line)
             c.setFont(context.font_config.monospace_family, track_size)
             c.drawString(duration_x, text_y, duration_text)
+
+            # Draw second line if it exists
+            if line2_text:
+                text_y -= track_size + line_spacing
+
+                # Draw 4 monospace spaces for indent
+                monospace_indent = "    "
+                c.setFont(context.font_config.monospace_family, track_size)
+                c.drawString(context.x + context.padding, text_y, monospace_indent)
+
+                # Draw line 2 text after the monospace indent
+                c.setFont(context.font_config.family, track_size)
+                c.drawString(
+                    context.x + context.padding + indent_width, text_y, line2_text,
+                    wordSpace=word_spacing, charSpace=line2_char_spacing
+                )
 
             text_y -= track_size + line_spacing
 
@@ -489,6 +483,186 @@ class TracklistSection(CardSection):
             c.line(x1, y1, x2, y2)
 
         c.restoreState()
+
+    def _calculate_char_spacing_factor(
+        self, text: str, current_width: float, target_width: float
+    ) -> float:
+        """
+        Calculate character spacing factor needed to fit text within target width.
+
+        Args:
+            text: Text to fit.
+            current_width: Current width of text with charSpace=0.
+            target_width: Target width to fit within.
+
+        Returns:
+            Character spacing factor (0 = normal, negative = compressed).
+        """
+        if current_width <= target_width:
+            return 0.0  # No compression needed
+
+        # Calculate how much we need to compress
+        # Formula: new_width = current_width + (len(text) * char_spacing)
+        # We want: target_width = current_width + (len(text) * char_spacing)
+        # So: char_spacing = (target_width - current_width) / len(text)
+        num_chars = len(text)
+        if num_chars == 0:
+            return 0.0
+
+        char_spacing = (target_width - current_width) / num_chars
+        return char_spacing
+
+    def _fit_track_title_adaptive(
+        self, c: Canvas, track_title_text: str,
+        line1_available_width: float, line2_available_width: float,
+        font_family: str, font_size: float, word_spacing: float, min_char_spacing: float
+    ) -> tuple[str, str, float, float]:
+        """
+        Adaptively fit track title using character spacing compression and smart wrapping.
+
+        Algorithm:
+        1. Try single line with normal spacing (charSpace=0)
+        2. If doesn't fit, calculate compression factor needed
+        3. If factor >= min_char_spacing threshold, use compression
+        4. Otherwise, wrap to two lines:
+           - Split at word boundary
+           - Calculate compression for narrower line
+           - Apply same compression to both lines for consistency
+           - If still doesn't fit, use min compression and truncate line 2
+
+        Args:
+            c: Canvas for measuring text width.
+            track_title_text: Track title to fit.
+            line1_available_width: Available width for line 1 (after track number, before duration).
+            line2_available_width: Available width for line 2 (full width minus indent).
+            font_family: Font family name.
+            font_size: Font size in points.
+            word_spacing: Word spacing adjustment in points.
+            min_char_spacing: Minimum character spacing threshold.
+
+        Returns:
+            Tuple of (line1_text, line2_text, char_spacing, line2_char_spacing).
+            line2_text is empty string if single line fits.
+        """
+        # Calculate current width with word spacing
+        title_width = c.stringWidth(track_title_text, font_family, font_size)
+        title_width += track_title_text.count(' ') * word_spacing
+
+        # Step 1: Try single line first
+        if title_width <= line1_available_width:
+            return (track_title_text, "", 0.0, 0.0)
+
+        # Step 2: Calculate compression factor needed for single line
+        char_spacing = self._calculate_char_spacing_factor(
+            track_title_text, title_width, line1_available_width
+        )
+
+        if char_spacing >= min_char_spacing:
+            # Compression is acceptable, use single line
+            return (track_title_text, "", char_spacing, 0.0)
+
+        # Step 3: Wrap to two lines
+        # Split at word boundary to maximize line 1 usage
+        first_line, remainder = self._split_text_for_wrap(
+            c, track_title_text, line1_available_width, font_family, font_size, word_spacing
+        )
+
+        if not remainder:
+            # Entire text fits on line 1 after split (shouldn't happen, but handle it)
+            return (first_line, "", 0.0, 0.0)
+
+        # Calculate widths for both lines with word spacing
+        line1_width = c.stringWidth(first_line, font_family, font_size)
+        line1_width += first_line.count(' ') * word_spacing
+
+        # Line 2 text (without indent - indent will be drawn separately in monospace)
+        line2_text = remainder
+        line2_width = c.stringWidth(line2_text, font_family, font_size)
+        line2_width += line2_text.count(' ') * word_spacing
+
+        # Check if both lines fit with normal spacing
+        if line1_width <= line1_available_width and line2_width <= line2_available_width:
+            return (first_line, line2_text, 0.0, 0.0)
+
+        # Calculate compression factors for both lines
+        line1_char_spacing = self._calculate_char_spacing_factor(
+            first_line, line1_width, line1_available_width
+        )
+        line2_char_spacing = self._calculate_char_spacing_factor(
+            line2_text, line2_width, line2_available_width
+        )
+
+        # Use compression factor from the narrower line (worst case)
+        # Apply same factor to both lines for visual consistency
+        unified_char_spacing = min(line1_char_spacing, line2_char_spacing)
+
+        if unified_char_spacing >= min_char_spacing:
+            # Both lines can fit with compression
+            return (first_line, line2_text, unified_char_spacing, unified_char_spacing)
+
+        # Step 4: Last resort - use min compression and truncate line 2
+        # Render line 1 with min compression
+        # Truncate line 2 with ellipsis using min compression
+        truncated_line2 = self._truncate_with_ellipsis_and_char_spacing(
+            c, line2_text, line2_available_width, font_family, font_size,
+            word_spacing, min_char_spacing
+        )
+
+        return (first_line, truncated_line2, min_char_spacing, min_char_spacing)
+
+    def _truncate_with_ellipsis_and_char_spacing(
+        self, c: Canvas, text: str, max_width: float, font_family: str, font_size: float,
+        word_spacing: float, char_spacing: float
+    ) -> str:
+        """
+        Truncate text with ellipsis accounting for character spacing.
+
+        Args:
+            c: Canvas for measuring text width.
+            text: Text to truncate.
+            max_width: Maximum width in points.
+            font_family: Font family name.
+            font_size: Font size in points.
+            word_spacing: Word spacing adjustment in points.
+            char_spacing: Character spacing to apply.
+
+        Returns:
+            Truncated text with ellipsis if needed.
+        """
+        # Calculate width with char spacing
+        text_width = c.stringWidth(text, font_family, font_size)
+        text_width += text.count(' ') * word_spacing
+        text_width += len(text) * char_spacing
+
+        if text_width <= max_width:
+            return text
+
+        # Use single character ellipsis
+        ellipsis = "…"
+        ellipsis_width = c.stringWidth(ellipsis, font_family, font_size)
+        ellipsis_width += char_spacing  # Ellipsis also gets char spacing
+
+        # Available width for actual text (excluding ellipsis)
+        available_text_width = max_width - ellipsis_width
+
+        # Binary search for the right length
+        left, right = 0, len(text)
+        best_length = 0
+
+        while left <= right:
+            mid = (left + right) // 2
+            truncated_text = text[:mid]
+            width = c.stringWidth(truncated_text, font_family, font_size)
+            width += truncated_text.count(' ') * word_spacing
+            width += len(truncated_text) * char_spacing
+
+            if width <= available_text_width:
+                best_length = mid
+                left = mid + 1
+            else:
+                right = mid - 1
+
+        return text[:best_length] + ellipsis
 
     def _truncate_with_ellipsis(
         self, c: Canvas, text: str, max_width: float, font_family: str, font_size: float,

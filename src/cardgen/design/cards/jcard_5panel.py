@@ -94,6 +94,8 @@ def create_jcard_5panel(
             side_b=side_b,
             title="Tracklist",
             track_title_overflow=theme.get_track_title_overflow(),
+            min_char_spacing=theme.get_min_track_title_char_spacing(),
+
         )
     )
 

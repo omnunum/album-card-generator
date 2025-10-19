@@ -113,3 +113,12 @@ class DefaultTheme(Theme):
             "center", "left", or "right".
         """
         return self.config.cover_art_align
+
+    def get_min_track_title_char_spacing(self) -> float:
+        """
+        Get minimum character spacing for track titles.
+
+        Returns:
+            Minimum character spacing (negative = compressed).
+        """
+        return self.config.min_track_title_char_spacing

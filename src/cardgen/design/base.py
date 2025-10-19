@@ -140,6 +140,16 @@ class Theme(ABC):
         """
         pass
 
+    @abstractmethod
+    def get_min_track_title_char_spacing(self) -> float:
+        """
+        Get minimum character spacing for track titles.
+
+        Returns:
+            Minimum character spacing (negative = compressed).
+        """
+        pass
+
 
 class Card(ABC):
     """Abstract base class for card layouts."""

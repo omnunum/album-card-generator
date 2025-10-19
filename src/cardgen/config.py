@@ -57,6 +57,7 @@ class DefaultThemeConfig(BaseModel):
     text_color: list[float] = [0.0, 0.0, 0.0]
     accent_color: list[float] = [0.2, 0.2, 0.2]
     track_title_overflow: TrackTitleOverflow = "truncate"  # "truncate" or "wrap"
+    min_track_title_char_spacing: float = -1.0  # Minimum character spacing for track titles (negative = compressed)
     # Gradient background options
     use_gradient: bool = False  # Extract colors from album art for gradient background
     gradient_text_color: list[float] = [1.0, 1.0, 1.0]  # White text for gradient mode

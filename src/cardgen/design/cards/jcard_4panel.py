@@ -67,6 +67,7 @@ class JCard4Panel(Card):
                 side_b=self.side_b,
                 title="Tracklist",
                 track_title_overflow=self.theme.get_track_title_overflow(),
+                min_char_spacing=self.theme.get_min_track_title_char_spacing(),
             )
         )
 

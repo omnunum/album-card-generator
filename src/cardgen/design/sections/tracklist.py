@@ -52,9 +52,9 @@ class TracklistSection(CardSection):
         """Render track listing with Side A/B and duration minimap."""
         c = context.canvas
 
-        # Minimap bar width on right side
-        minimap_width = 10  # points
-        minimap_gap = 8  # gap between tracklist and minimap
+        # Horizontal minimap bar height (under each side label)
+        minimap_height = 10  # points
+        minimap_gap = 4  # gap between minimap and tracks
 
         c.setFillColor(Color(*context.color_scheme.text))
 
@@ -85,16 +85,12 @@ class TracklistSection(CardSection):
         c.setFont(context.font_config.family, track_size)
         text_y -= track_size + 10
 
-        # Available width for track text (leaving room for minimap)
-        text_width = context.width - (context.padding * 2) - minimap_width - minimap_gap
+        # Available width for track text (full width now that minimap is horizontal)
+        text_width = context.width - (context.padding * 2)
 
-        # Calculate full bleed minimap dimensions (equal containers for both sides)
-        minimap_x = context.x + context.width - context.padding - minimap_width
-        minimap_top = text_y
-        minimap_bottom = context.y + context.padding
-        minimap_total_height = minimap_top - minimap_bottom
-        minimap_gap_between = 4  # Gap between Side A and Side B minimaps
-        minimap_side_height = (minimap_total_height - minimap_gap_between) / 2
+        # Minimap width spans full text width
+        minimap_width = text_width
+        minimap_x = context.x + context.padding
 
         # Calculate Side A unused space for Side B offset
         side_a_unused_duration = 0
@@ -106,8 +102,9 @@ class TracklistSection(CardSection):
         if self.side_a and self.side_a.tracks:
             text_y = self._render_tape_side(
                 context, self.side_a, "Side A", text_y, text_width,
-                minimap_x, minimap_top, minimap_width, minimap_side_height,
-                unused_duration_offset=0, track_size=track_size, line_spacing=line_spacing
+                minimap_x, text_y, minimap_width, minimap_height,
+                unused_duration_offset=0, track_size=track_size, line_spacing=line_spacing,
+                minimap_gap=minimap_gap
             )
             text_y -= line_spacing  # Gap between sides
 
@@ -116,8 +113,9 @@ class TracklistSection(CardSection):
             # Always render Side B - we calculated space for it
             text_y = self._render_tape_side(
                 context, self.side_b, "Side B", text_y, text_width,
-                minimap_x, minimap_top - minimap_side_height - minimap_gap_between, minimap_width, minimap_side_height,
-                unused_duration_offset=side_a_unused_duration, track_size=track_size, line_spacing=line_spacing
+                minimap_x, text_y, minimap_width, minimap_height,
+                unused_duration_offset=side_a_unused_duration, track_size=track_size, line_spacing=line_spacing,
+                minimap_gap=minimap_gap
             )
 
     def _render_tape_side(
@@ -134,9 +132,10 @@ class TracklistSection(CardSection):
         unused_duration_offset: float = 0,
         track_size: float = 10,
         line_spacing: float = 3,
+        minimap_gap: float = 4,
     ) -> float:
         """
-        Render a single tape side (A or B) with tracks and minimap.
+        Render a single tape side (A or B) with tracks and horizontal minimap.
 
         Args:
             context: Rendering context.
@@ -144,12 +143,14 @@ class TracklistSection(CardSection):
             label: Label to display ("Side A" or "Side B").
             text_y: Current y position for text.
             text_width: Available width for track text.
-            minimap_x: X position for minimap.
-            minimap_y: Top Y position for minimap.
-            minimap_width: Width of minimap bar.
+            minimap_x: Unused (kept for compatibility).
+            minimap_y: Unused (kept for compatibility).
+            minimap_width: Unused (kept for compatibility).
             minimap_height: Height of minimap bar.
             unused_duration_offset: Duration offset for Side B tape flip logic.
             track_size: Font size for tracks.
+            line_spacing: Line spacing between tracks.
+            minimap_gap: Unused (minimap is inline with label).
 
         Returns:
             Updated text_y position after rendering.
@@ -162,7 +163,34 @@ class TracklistSection(CardSection):
         # Side header
         c.setFont(f"{context.font_config.family}-Bold", track_size)
         c.drawString(context.x + context.padding, text_y, label)
+
+        # Draw horizontal minimap to the right of the side label (on the same line)
+        # Position minimap starting after the label text
+        label_width = c.stringWidth(label, f"{context.font_config.family}-Bold", track_size)
+        minimap_left_margin = 12  # Gap between label and minimap
+        minimap_start_x = context.x + context.padding + label_width + minimap_left_margin
+        minimap_available_width = text_width - label_width - minimap_left_margin
+
+        # Draw minimap aligned with the label baseline
+        # The minimap's top should align with the top of the text
+        minimap_top_y = text_y + track_size * 0.75  # Align minimap vertically with label (raised slightly)
+        self._draw_minimap(
+            context,
+            tape_side,
+            minimap_start_x,
+            minimap_top_y,
+            minimap_available_width,
+            minimap_height,
+            unused_duration_offset,
+        )
+
         text_y -= track_size + line_spacing
+
+        # Move down after the side header (no extra space needed for minimap since it's inline)
+        # text_y is already positioned for next line
+
+        # Ensure text color is reset after minimap drawing
+        c.setFillColor(Color(*context.color_scheme.text))
 
         # Side tracks
         # Compress word spacing by 40% to fit more text
@@ -170,7 +198,7 @@ class TracklistSection(CardSection):
 
         for track in tape_side.tracks:
             # Format track number as right-aligned (e.g., ' 9' or '10')
-            track_num_text = f"{track.track_number:2d}. "
+            track_num_text = f"{track.track_number:2d}."
             track_title_text = track.title
             duration_text = track.format_duration()
 
@@ -184,7 +212,7 @@ class TracklistSection(CardSection):
             duration_x = context.x + context.padding + text_width - duration_width
 
             # Calculate available width for track text (leave gap before duration)
-            gap_before_duration = 8  # points
+            gap_before_duration = 3  # points - small gap between title and duration
             available_track_width = duration_x - (context.x + context.padding) - gap_before_duration
 
             # Calculate widths for track number (monospace) and title (regular font)
@@ -256,17 +284,6 @@ class TracklistSection(CardSection):
             c.drawString(duration_x, text_y, duration_text)
 
             text_y -= track_size + line_spacing
-
-        # Draw minimap
-        self._draw_minimap(
-            context,
-            tape_side,
-            minimap_x,
-            minimap_y,
-            minimap_width,
-            minimap_height,
-            unused_duration_offset,
-        )
 
         return text_y
 
@@ -369,7 +386,7 @@ class TracklistSection(CardSection):
         height: float,
         unused_duration_offset: float = 0,
     ) -> None:
-        """Draw a visual minimap of track durations for a tape side."""
+        """Draw a horizontal visual minimap of track durations for a tape side."""
         if not tape_side.tracks or tape_side.max_duration == 0:
             return
 
@@ -383,25 +400,25 @@ class TracklistSection(CardSection):
         # Build segments
         segments = self._build_minimap_segments(tape_side, unused_duration_offset)
 
-        # Render each segment
-        current_y = y
+        # Render each segment horizontally (left-to-right)
+        current_x = x
         track_font_size = 7  # Increased from 6 for better print visibility
 
         for i, segment in enumerate(segments):
-            # Calculate height proportional to duration
+            # Calculate width proportional to duration
             segment_proportion = segment.duration / tape_side.max_duration
-            segment_height = height * segment_proportion
+            segment_width = width * segment_proportion
 
             if segment.is_hatched:
                 # Draw cross-hatched pattern for empty space
-                self._draw_hatched_rect(c, x, current_y - segment_height, width, segment_height)
+                self._draw_hatched_rect(c, current_x, y - height, segment_width, height)
             else:
                 # Draw filled rectangle for track
                 c.setFillColor(Color(*context.color_scheme.accent))
-                c.rect(x, current_y - segment_height, width, segment_height, fill=1, stroke=0)
+                c.rect(current_x, y - height, segment_width, height, fill=1, stroke=0)
 
-                # Draw track number vertically centered
-                if segment.track_number is not None and segment_height > 5:
+                # Draw track number vertically (upright), horizontally centered in segment
+                if segment.track_number is not None and segment_width > 5:
                     c.setFillColor(Color(*context.color_scheme.background))
                     # Use bold font for better print visibility
                     c.setFont(f"{context.font_config.monospace_family}-Bold", track_font_size)
@@ -410,21 +427,22 @@ class TracklistSection(CardSection):
                         track_num_str, f"{context.font_config.monospace_family}-Bold", track_font_size
                     )
 
-                    # Vertically center: segment middle point, accounting for text baseline
-                    segment_middle_y = current_y - segment_height / 2
-                    text_y = segment_middle_y - track_font_size / 3  # Adjust for baseline
+                    # Horizontally center in segment, vertically center in minimap bar
+                    segment_middle_x = current_x + segment_width / 2
+                    text_x = segment_middle_x - track_num_width / 2
+                    text_y = y - height / 2 - track_font_size / 3  # Vertically center, adjust for baseline
                     c.drawString(
-                        x + (width - track_num_width) / 2,
+                        text_x,
                         text_y,
                         track_num_str,
                     )
 
-            # Draw white separator line (but not after the last segment)
-            current_y -= segment_height
+            # Draw vertical separator line (but not after the last segment)
+            current_x += segment_width
             if i < len(segments) - 1:
                 c.setStrokeColor(Color(*context.color_scheme.background))
                 c.setLineWidth(0.5)
-                c.line(x, current_y, x + width, current_y)
+                c.line(current_x, y - height, current_x, y)
 
     def _draw_hatched_rect(self, c: Canvas, x: float, y: float, width: float, height: float) -> None:
         """Draw a rectangle with cross-hatch pattern."""
@@ -490,14 +508,17 @@ class TracklistSection(CardSection):
         Returns:
             Truncated text with ellipsis if needed.
         """
-        # Use tighter ellipsis (non-breaking) to save space
-        ellipsis = "…"  # Single character ellipsis instead of "..."
-        ellipsis_width = c.stringWidth(ellipsis, font_family, font_size)
-
         # If text already fits, return as-is
         text_width = c.stringWidth(text, font_family, font_size) + text.count(' ') * word_spacing
         if text_width <= max_width:
             return text
+
+        # Use single character ellipsis
+        ellipsis = "…"
+        ellipsis_width = c.stringWidth(ellipsis, font_family, font_size)
+
+        # Available width for actual text (excluding ellipsis)
+        available_text_width = max_width - ellipsis_width
 
         # Binary search for the right length
         left, right = 0, len(text)
@@ -505,11 +526,11 @@ class TracklistSection(CardSection):
 
         while left <= right:
             mid = (left + right) // 2
-            truncated = text[:mid] + ellipsis
-            width = c.stringWidth(truncated, font_family, font_size)
-            width += truncated.count(' ') * word_spacing
+            truncated_text = text[:mid]
+            width = c.stringWidth(truncated_text, font_family, font_size)
+            width += truncated_text.count(' ') * word_spacing
 
-            if width <= max_width:
+            if width <= available_text_width:
                 best_length = mid
                 left = mid + 1
             else:

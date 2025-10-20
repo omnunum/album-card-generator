@@ -90,7 +90,7 @@ class AlbumArt:
             right = left + target_width
             bottom = top + target_height
 
-            return img.crop((left, top, right, bottom))
+            return img.crop((left, top, right, bottom)).copy()
 
         elif mode == "fullscale":
             # Fullscale mode: height-based scaling with horizontal crop/alignment
@@ -126,7 +126,7 @@ class AlbumArt:
             top = 0
             bottom = target_height
 
-            return img.crop((left, top, right, bottom))
+            return img.crop((left, top, right, bottom)).copy()
 
         else:
             raise ValueError(f"Invalid mode: {mode}. Must be 'square' or 'fullscale'")

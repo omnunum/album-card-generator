@@ -212,10 +212,13 @@ class PDFRenderer:
             # Calculate interpolation factor (0 to 1 from top to bottom)
             t = py / img_height
 
+            # Use softened cubic interpolation (80% cubic, 20% linear) for more color at edges, less in middle
+            t_cubic = 0.8 * (3 * t**2 - 2 * t**3) + 0.2 * t
+
             # Interpolate colors
-            r = int(start_r + t * (end_r - start_r))
-            g = int(start_g + t * (end_g - start_g))
-            b = int(start_b + t * (end_b - start_b))
+            r = int(start_r + t_cubic * (end_r - start_r))
+            g = int(start_g + t_cubic * (end_g - start_g))
+            b = int(start_b + t_cubic * (end_b - start_b))
 
             # Fill entire row with this color
             for px in range(img_width):

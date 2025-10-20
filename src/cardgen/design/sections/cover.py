@@ -1,13 +1,9 @@
 """Cover section implementation."""
 
-from io import BytesIO
-
 from reportlab.lib.colors import Color
-from reportlab.lib.utils import ImageReader
 
 from cardgen.design.base import CardSection, RendererContext
-from cardgen.render.image import resize_and_crop_cover, resize_and_crop_cover_fullscale
-from cardgen.types import CoverArtAlign, CoverArtMode
+from cardgen.utils.album_art import AlbumArt
 from cardgen.utils.dimensions import SAFE_MARGIN, Dimensions, inches_to_points
 from cardgen.utils.text import calculate_max_font_size
 
@@ -19,11 +15,9 @@ class CoverSection(CardSection):
         self,
         name: str,
         dimensions: Dimensions,
-        cover_art: bytes,
+        album_art: AlbumArt | None,
         title: str,
         artist: str,
-        cover_art_mode: CoverArtMode = "square",
-        cover_art_align: CoverArtAlign = "center",
     ) -> None:
         """
         Initialize cover section.
@@ -31,24 +25,24 @@ class CoverSection(CardSection):
         Args:
             name: Section name.
             dimensions: Section dimensions.
-            cover_art: Raw image data for album art.
+            album_art: AlbumArt object for image processing.
             title: Album title.
             artist: Artist name.
-            cover_art_mode: Display mode - "square" or "fullscale".
-            cover_art_align: Horizontal alignment for fullscale - "center", "left", or "right".
         """
         super().__init__(name, dimensions)
-        self.cover_art = cover_art
+        self.album_art = album_art
         self.title = title
         self.artist = artist
-        self.cover_art_mode = cover_art_mode
-        self.cover_art_align = cover_art_align
 
     def render(self, context: RendererContext) -> None:
         """Render front cover with album art."""
         c = context.canvas
 
-        if self.cover_art_mode == "fullscale":
+        # Get cover art mode and alignment from theme
+        mode = context.color_scheme.cover_art_mode
+        align = context.color_scheme.cover_art_align
+
+        if mode == "fullscale":
             # Fullscale mode: art fills full height with horizontal crop/alignment
             text_height = 60  # Reserve space for title and artist at bottom
 
@@ -63,8 +57,8 @@ class CoverSection(CardSection):
             # Resize and crop album art with alignment
             target_width_px = int((art_width / 72) * context.dpi)
             target_height_px = int((art_height / 72) * context.dpi)
-            processed_img = resize_and_crop_cover_fullscale(
-                self.cover_art, (target_width_px, target_height_px), align=self.cover_art_align
+            processed_img = self.album_art.resize_and_crop(
+                (target_width_px, target_height_px), mode="fullscale", align=align
             )
         else:
             # Square mode (default): art is square, centered
@@ -84,13 +78,10 @@ class CoverSection(CardSection):
 
             # Resize and crop album art
             target_px = int((art_size / 72) * context.dpi)
-            processed_img = resize_and_crop_cover(self.cover_art, (target_px, target_px))
+            processed_img = self.album_art.resize_and_crop((target_px, target_px), mode="square")
 
-        # Save to temporary bytes buffer and create ImageReader
-        img_buffer = BytesIO()
-        processed_img.save(img_buffer, format="PNG")
-        img_buffer.seek(0)
-        img_reader = ImageReader(img_buffer)
+        # Convert PIL image to ImageReader
+        img_reader = AlbumArt.pil_to_image_reader(processed_img)
 
         # Draw image
         c.drawImage(

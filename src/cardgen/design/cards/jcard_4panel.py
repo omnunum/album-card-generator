@@ -2,8 +2,9 @@
 
 from cardgen.api.models import Album
 from cardgen.design.base import Card, CardSection, Theme
-from cardgen.design.sections import CoverSection, GenreDescriptorsSection, MetadataSection, SpineSection, TracklistSection
+from cardgen.design.sections import CoverSection, MetadataSection, SpineSection, TracklistSection
 from cardgen.design.sections.spine import SpineTextItem
+from cardgen.utils.album_art import AlbumArt
 from cardgen.utils.dimensions import (
     JCARD_BACK_WIDTH,
     JCARD_HEIGHT,
@@ -13,7 +14,6 @@ from cardgen.utils.dimensions import (
     get_jcard_4_panel_dimensions,
     get_panel_dimensions,
 )
-from cardgen.utils.genres import build_genre_tree
 from cardgen.utils.tape import split_tracks_by_tape_sides
 
 
@@ -25,16 +25,18 @@ class JCard4Panel(Card):
     When folded, back wraps around outside back, front is on outside front, inside opens to the right.
     """
 
-    def __init__(self, album: Album, theme: Theme, tape_length_minutes: int = 90) -> None:
+    def __init__(self, album: Album, theme: Theme, album_art: AlbumArt | None, tape_length_minutes: int = 90) -> None:
         """
         Initialize 4-panel j-card.
 
         Args:
             album: Album data to display.
             theme: Theme for styling.
+            album_art: AlbumArt object for image processing.
             tape_length_minutes: Length of cassette tape in minutes (default: 90 for C90).
         """
         super().__init__(album, theme, tape_length_minutes)
+        self.album_art = album_art
         self.panels = get_panel_dimensions()
 
         # Split tracks into tape sides
@@ -92,7 +94,7 @@ class JCard4Panel(Card):
                 name="spine",
                 dimensions=self.panels["spine"],
                 text_lines=spine_items,
-                cover_art=self.album.cover_art,
+                album_art=self.album_art,
             )
         )
 
@@ -101,11 +103,9 @@ class JCard4Panel(Card):
             CoverSection(
                 name="front",
                 dimensions=self.panels["front"],
-                cover_art=self.album.cover_art,
+                album_art=self.album_art,
                 title=self.album.title,
                 artist=self.album.artist,
-                cover_art_mode=self.theme.get_cover_art_mode(),
-                cover_art_align=self.theme.get_cover_art_align(),
             )
         )
 

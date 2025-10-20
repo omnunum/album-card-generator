@@ -1,16 +1,15 @@
 """PDF generation using ReportLab."""
 
-from io import BytesIO
 from pathlib import Path
 
 from PIL import Image as PILImage
 from reportlab.lib.colors import gray
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import inch
-from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
 
 from cardgen.design.base import Card, RendererContext
+from cardgen.utils.album_art import AlbumArt
 from cardgen.utils.dimensions import center_on_page, get_page_size, inches_to_points
 
 
@@ -61,6 +60,11 @@ class PDFRenderer:
         for section in sections:
             self._render_section(c, section, offset_x, offset_y, card.theme)
 
+        # Draw color palette legend if available
+        color_scheme = card.theme.get_color_scheme()
+        if color_scheme.color_palette:
+            self._draw_color_palette(c, color_scheme.color_palette, card_dims, offset_x, offset_y)
+
         # Save PDF
         c.save()
 
@@ -103,6 +107,11 @@ class PDFRenderer:
                 sections = card.get_sections()
                 for section in sections:
                     self._render_section(c, section, offset_x, offset_y, card.theme)
+
+                # Draw color palette legend if available
+                color_scheme = card.theme.get_color_scheme()
+                if color_scheme.color_palette:
+                    self._draw_color_palette(c, color_scheme.color_palette, card_dims, offset_x, offset_y)
 
             # Start new page if there are more cards
             if page_idx + 2 < len(cards):
@@ -212,14 +221,57 @@ class PDFRenderer:
             for px in range(img_width):
                 pixels[px, py] = (r, g, b)
 
-        # Save to bytes buffer and create ImageReader
-        img_buffer = BytesIO()
-        img.save(img_buffer, format='PNG')
-        img_buffer.seek(0)
-        img_reader = ImageReader(img_buffer)
+        # Convert PIL image to ImageReader
+        img_reader = AlbumArt.pil_to_image_reader(img)
 
         # Draw image
         c.drawImage(img_reader, x, y, width=width, height=height, preserveAspectRatio=False)
+
+    def _draw_color_palette(
+        self,
+        c: canvas.Canvas,
+        palette: list[tuple[float, float, float]],
+        card_dims: "Dimensions",  # type: ignore # noqa: F821
+        offset_x: float,
+        offset_y: float,
+    ) -> None:
+        """Draw color palette legend outside the card area."""
+        from reportlab.lib.colors import Color, black
+
+        # Convert to points
+        card_width = inches_to_points(card_dims.width)
+        card_height = inches_to_points(card_dims.height)
+        x_offset = inches_to_points(offset_x)
+        y_offset = inches_to_points(offset_y)
+
+        # Position palette to the right of the card
+        palette_x = x_offset + card_width + 18  # 18pts gap from card
+        palette_y_start = y_offset + card_height - 24  # Start slightly lower
+
+        square_size = 24  # 24pts square
+        gap = 4  # 4pts gap between squares
+        font_size = 7
+
+        c.setFont("Helvetica", font_size)
+
+        for i, color in enumerate(palette):
+            # Calculate position
+            y = palette_y_start - i * (square_size + gap + font_size + 4)
+
+            # Draw colored square
+            r, g, b = color
+            c.setFillColor(Color(r, g, b))
+            c.setStrokeColor(black)
+            c.setLineWidth(0.5)
+            c.rect(palette_x, y, square_size, square_size, fill=1, stroke=1)
+
+            # Draw number label
+            c.setFillColor(black)
+            c.drawString(palette_x, y + square_size + 2, f"{i}")
+
+            # Draw hex color code
+            hex_color = f"#{int(r*255):02x}{int(g*255):02x}{int(b*255):02x}"
+            c.drawString(palette_x + square_size + 4, y + square_size / 2 - 2, hex_color)
 
     def _draw_guides(
         self,

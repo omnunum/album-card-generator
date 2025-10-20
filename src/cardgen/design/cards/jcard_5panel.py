@@ -11,6 +11,7 @@ from cardgen.design.sections import (
     TracklistSection,
 )
 from cardgen.design.sections.spine import SpineTextItem
+from cardgen.utils.album_art import AlbumArt
 from cardgen.utils.dimensions import (
     JCARD_BACK_WIDTH,
     JCARD_HEIGHT,
@@ -22,7 +23,7 @@ from cardgen.utils.tape import split_tracks_by_tape_sides
 
 
 def create_jcard_5panel(
-    album: Album, theme: Theme, tape_length_minutes: int = 90
+    album: Album, theme: Theme, album_art: AlbumArt | None, tape_length_minutes: int = 90
 ) -> JCard:
     """
     Create a 5-panel j-card with genre/descriptors panel.
@@ -32,6 +33,7 @@ def create_jcard_5panel(
     Args:
         album: Album data to display.
         theme: Theme for styling.
+        album_art: AlbumArt object for image processing.
         tape_length_minutes: Length of cassette tape in minutes (default: 90 for C90).
 
     Returns:
@@ -68,7 +70,7 @@ def create_jcard_5panel(
             name="spine",
             dimensions=Dimensions(width=JCARD_SPINE_WIDTH, height=JCARD_HEIGHT),
             text_lines=spine_items,
-            cover_art=album.cover_art,
+            album_art=album_art,
         )
     )
 
@@ -77,11 +79,9 @@ def create_jcard_5panel(
         CoverSection(
             name="front",
             dimensions=Dimensions(width=JCARD_PANEL_WIDTH, height=JCARD_HEIGHT),
-            cover_art=album.cover_art,
+            album_art=album_art,
             title=album.title,
             artist=album.artist,
-            cover_art_mode=theme.get_cover_art_mode(),
-            cover_art_align=theme.get_cover_art_align(),
         )
     )
 

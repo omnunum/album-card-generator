@@ -10,6 +10,7 @@ from cardgen.design import JCard4Panel, create_jcard_5panel
 from cardgen.design.themes import DefaultTheme
 from cardgen.fonts import register_fonts
 from cardgen.render import PDFRenderer
+from cardgen.utils.album_art import AlbumArt
 from cardgen.utils.dimensions import PAGE_SIZES
 
 
@@ -51,6 +52,12 @@ def main() -> None:
     help="Use gradient background with colors extracted from album art.",
 )
 @click.option(
+    "--gradient-colors",
+    type=str,
+    default="0,1",
+    help="Gradient color indices as '0,1' (0-based). Uses top 2 most frequent colors by default.",
+)
+@click.option(
     "--dpi",
     type=int,
     help="DPI for image rendering (300-1200). Uses config default if not specified.",
@@ -88,6 +95,7 @@ def album(
     config: Path | None,
     card_type: str | None,
     gradient: bool,
+    gradient_colors: str,
     dpi: int | None,
     no_crop_marks: bool,
     page_size: str | None,
@@ -154,10 +162,44 @@ def album(
             click.echo(f"Error: Unsupported card type '{selected_card_type}'. Supported: jcard_4panel, jcard_5panel", err=True)
             raise SystemExit(1)
 
+        # Parse gradient color indices
+        gradient_indices = (0, 1)  # Default to first two colors (most frequent)
+        if gradient:
+            try:
+                parts = gradient_colors.split(',')
+                if len(parts) != 2:
+                    raise ValueError("Expected two comma-separated values")
+                # Parse as 0-based indices directly
+                idx1 = int(parts[0].strip())
+                idx2 = int(parts[1].strip())
+                if idx1 < 0 or idx2 < 0:
+                    raise ValueError("Indices must be non-negative")
+                gradient_indices = (idx1, idx2)
+            except ValueError as e:
+                click.echo(f"Error: Invalid --gradient-colors format '{gradient_colors}': {e}", err=True)
+                click.echo("Expected format: '0,1' (two 0-based indices separated by comma)", err=True)
+                raise SystemExit(1)
+
         # Create cards for each album with optional gradient
         cards = []
 
         for album_data in albums:
+            # Create AlbumArt object from cover art bytes
+            album_art_obj = AlbumArt(album_data.cover_art)
+
+            # Extract colors if gradient is enabled
+            extracted_palette = None
+            extracted_gradient = None
+            if gradient:
+                # Extract full color palette (sorted by descending frequency)
+                extracted_palette = album_art_obj.get_color_palette(max_colors=3)
+                # Select gradient colors directly from palette
+                extracted_gradient = (extracted_palette[gradient_indices[0]], extracted_palette[gradient_indices[1]])
+
+                # Show palette info
+                click.echo(f"  Extracted {len(extracted_palette)} colors from album art")
+                click.echo(f"  Using gradient colors {gradient_indices[0]} and {gradient_indices[1]} (0-based indices)")
+
             # Create theme config with gradient enabled if flag is set
             theme_config = cfg.themes.default
             updates = {}
@@ -171,14 +213,18 @@ def album(
             if updates:
                 theme_config = theme_config.model_copy(update=updates)
 
-            # Create theme (pass cover art for gradient extraction)
-            theme_obj = DefaultTheme(theme_config, cover_art=album_data.cover_art)
+            # Create theme with pre-computed colors
+            theme_obj = DefaultTheme(
+                theme_config,
+                color_palette=extracted_palette,
+                gradient_colors=extracted_gradient,
+            )
 
-            # Create card with theme
+            # Create card with theme and album art
             if selected_card_type == "jcard_4panel":
-                card = JCard4Panel(album_data, theme_obj, tape_length_minutes=tape_length)
+                card = JCard4Panel(album_data, theme_obj, album_art_obj, tape_length_minutes=tape_length)
             else:  # jcard_5panel
-                card = create_jcard_5panel(album_data, theme_obj, tape_length_minutes=tape_length)
+                card = create_jcard_5panel(album_data, theme_obj, album_art_obj, tape_length_minutes=tape_length)
             cards.append(card)
 
         # Render PDF

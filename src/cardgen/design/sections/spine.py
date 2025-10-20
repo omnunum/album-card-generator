@@ -1,14 +1,12 @@
 """Spine section implementation."""
 
 from dataclasses import dataclass
-from io import BytesIO
 from typing import Optional
 
 from reportlab.lib.colors import Color
-from reportlab.lib.utils import ImageReader
 
 from cardgen.design.base import CardSection, RendererContext
-from cardgen.render.image import resize_and_crop_cover
+from cardgen.utils.album_art import AlbumArt
 from cardgen.utils.dimensions import Dimensions, SAFE_MARGIN, inches_to_points
 from cardgen.utils.text import calculate_optimal_char_spacing
 
@@ -28,7 +26,7 @@ class SpineSection(CardSection):
         name: str,
         dimensions: Dimensions,
         text_lines: list[str] | list[SpineTextItem],
-        cover_art: Optional[bytes] = None,
+        album_art: Optional[AlbumArt] = None,
     ) -> None:
         """
         Initialize spine section.
@@ -37,10 +35,10 @@ class SpineSection(CardSection):
             name: Section name.
             dimensions: Section dimensions.
             text_lines: List of text lines (strings or SpineTextItem objects).
-            cover_art: Optional raw image data for album art.
+            album_art: Optional AlbumArt object for image processing.
         """
         super().__init__(name, dimensions)
-        self.cover_art = cover_art
+        self.album_art = album_art
         # Convert strings to SpineTextItem if needed
         self.text_items: list[SpineTextItem] = []
         for item in text_lines:
@@ -56,8 +54,8 @@ class SpineSection(CardSection):
         c.setFillColor(Color(*context.color_scheme.text))
 
         # Calculate album art size if present (0.5" x 0.5" square, full bleed)
-        album_art_size = inches_to_points(0.5) if self.cover_art else 0
-        album_art_gap = 6 if self.cover_art else 0  # Small gap between art and text
+        album_art_size = inches_to_points(0.5) if self.album_art else 0
+        album_art_gap = 6 if self.album_art else 0  # Small gap between art and text
 
         # Calculate the largest font size that will fit
         # Available length is the height (since text is rotated 90 degrees)
@@ -178,13 +176,13 @@ class SpineSection(CardSection):
                 print(f"DEBUG: SWITCHING TO TWO-LINE MODE! artist_spacing={artist_line_char_spacing:.2f}, remaining_spacing={remaining_line_char_spacing:.2f}", file=sys.stderr)
 
         # Render album art if present (rotated 90 degrees to align with spine text)
-        if self.cover_art:
+        if self.album_art:
             # Album art: 0.5" x 0.5" square at top of spine (full bleed)
             art_size = inches_to_points(0.5)
 
             # Resize and crop album art to square
             target_px = int((art_size / 72) * context.dpi)
-            processed_img = resize_and_crop_cover(self.cover_art, (target_px, target_px))
+            processed_img = self.album_art.resize_and_crop((target_px, target_px), mode="square")
 
             # Save state for rotation
             c.saveState()
@@ -198,11 +196,8 @@ class SpineSection(CardSection):
             c.translate(art_center_x, art_center_y)
             c.rotate(90)
 
-            # Save to temporary bytes buffer and create ImageReader
-            img_buffer = BytesIO()
-            processed_img.save(img_buffer, format="PNG")
-            img_buffer.seek(0)
-            img_reader = ImageReader(img_buffer)
+            # Convert PIL image to ImageReader
+            img_reader = self.album_art.to_image_reader(processed_img)
 
             # Draw image centered at origin (which is now the rotated center point)
             c.drawImage(
@@ -224,7 +219,7 @@ class SpineSection(CardSection):
         # If we have album art, we need to shift the text center down to account for it
         # The text should be centered in the remaining space (after album art + gap)
         text_center_offset = 0
-        if self.cover_art:
+        if self.album_art:
             # Offset = half of (album_art_size + gap) to shift center point down
             text_center_offset = -(album_art_size + album_art_gap) / 2
 

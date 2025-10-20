@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from cardgen.api.models import Album
-from cardgen.types import CoverArtAlign, CoverArtMode, TrackTitleOverflow
+from cardgen.types import CoverArtAlign, CoverArtMode, RGBColor, TrackTitleOverflow
 from cardgen.utils.dimensions import Dimensions
 
 if TYPE_CHECKING:
@@ -16,13 +16,18 @@ if TYPE_CHECKING:
 class ColorScheme:
     """Color scheme for theme."""
 
-    background: tuple[float, float, float]  # RGB 0-1
-    text: tuple[float, float, float]  # RGB 0-1
-    accent: tuple[float, float, float]  # RGB 0-1
+    background: RGBColor  # RGB 0-1
+    text: RGBColor  # RGB 0-1
+    accent: RGBColor  # RGB 0-1
     # Gradient support
     gradient_enabled: bool = False  # Whether to use gradient background
-    gradient_start: tuple[float, float, float] | None = None  # RGB 0-1 for gradient start
-    gradient_end: tuple[float, float, float] | None = None  # RGB 0-1 for gradient end
+    gradient_start: RGBColor | None = None  # RGB 0-1 for gradient start
+    gradient_end: RGBColor | None = None  # RGB 0-1 for gradient end
+    # Color palette for legend (2-8 distinct colors extracted from album art)
+    color_palette: list[RGBColor] | None = None
+    # Cover art display settings
+    cover_art_mode: CoverArtMode = "square"  # Display mode for cover art
+    cover_art_align: CoverArtAlign = "center"  # Horizontal alignment for fullscale mode
 
 
 @dataclass

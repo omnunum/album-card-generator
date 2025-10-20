@@ -3,19 +3,25 @@
 from cardgen.config import DefaultThemeConfig
 from cardgen.design.base import ColorScheme, FontConfig, Theme
 from cardgen.fonts import is_iosevka_available
-from cardgen.types import CoverArtAlign, CoverArtMode, TrackTitleOverflow
+from cardgen.types import CoverArtAlign, CoverArtMode, RGBColor, TrackTitleOverflow
 
 
 class DefaultTheme(Theme):
     """Default clean theme for j-cards with optional gradient background."""
 
-    def __init__(self, config: DefaultThemeConfig | None = None, cover_art: bytes | None = None) -> None:
+    def __init__(
+        self,
+        config: DefaultThemeConfig | None = None,
+        color_palette: list[RGBColor] | None = None,
+        gradient_colors: tuple[RGBColor, RGBColor] | None = None,
+    ) -> None:
         """
         Initialize default theme.
 
         Args:
             config: Theme configuration from config file. If None, uses defaults.
-            cover_art: Optional album art for gradient color extraction.
+            color_palette: Optional pre-computed color palette from album art.
+            gradient_colors: Optional pre-computed gradient colors as (start_color, end_color).
         """
         if config is None:
             from cardgen.config import DefaultThemeConfig
@@ -23,14 +29,13 @@ class DefaultTheme(Theme):
             config = DefaultThemeConfig()
 
         self.config = config
-        self.cover_art = cover_art
-        self.gradient_start = None
-        self.gradient_end = None
+        self.color_palette = color_palette
+        self.gradient_start: RGBColor | None = None
+        self.gradient_end: RGBColor | None = None
 
-        # Extract gradient colors if enabled and cover art is provided
-        if config.use_gradient and cover_art is not None:
-            from cardgen.utils.color_extraction import get_gradient_colors
-            self.gradient_start, self.gradient_end = get_gradient_colors(cover_art)
+        # Use pre-computed gradient colors if provided
+        if config.use_gradient and gradient_colors is not None:
+            self.gradient_start, self.gradient_end = gradient_colors
 
     def get_font_config(self) -> FontConfig:
         """
@@ -69,6 +74,9 @@ class DefaultTheme(Theme):
                 gradient_enabled=True,
                 gradient_start=self.gradient_start,
                 gradient_end=self.gradient_end,
+                color_palette=self.color_palette,
+                cover_art_mode=self.config.cover_art_mode,
+                cover_art_align=self.config.cover_art_align,
             )
 
         # Standard solid color scheme
@@ -76,6 +84,8 @@ class DefaultTheme(Theme):
             background=tuple(self.config.background_color),  # type: ignore
             text=tuple(self.config.text_color),  # type: ignore
             accent=tuple(self.config.accent_color),  # type: ignore
+            cover_art_mode=self.config.cover_art_mode,
+            cover_art_align=self.config.cover_art_align,
         )
 
     def get_padding(self) -> float:

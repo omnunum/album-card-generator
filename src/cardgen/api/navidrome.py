@@ -167,7 +167,7 @@ class NavidromeClient:
             tracks=tracks,
         )
 
-    def get_cover_art(self, cover_id: str, size: int = 600) -> bytes:
+    def get_cover_art(self, cover_id: str, size: int = 2400) -> bytes:
         """
         Fetch cover art by ID.
 

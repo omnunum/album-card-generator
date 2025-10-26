@@ -51,6 +51,7 @@ class DefaultThemeConfig(BaseModel):
     monospace_font_family: str = "Iosevka"  # For fixed-width content (track numbers, durations)
     title_font_size: int = 14
     artist_font_size: int = 12
+    subtitle_font_size: int = 12  # For side headers (Side A/B) and minimap
     track_font_size: int = 10
     metadata_font_size: int = 8
     background_color: list[float] = [1.0, 1.0, 1.0]

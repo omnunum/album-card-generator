@@ -72,11 +72,6 @@ class NavidromeClient:
         cover_art_id = album_data.cover_art or album_id
         cover_art = self.get_cover_art(cover_art_id)
 
-        # Get label from record_labels if available
-        label = None
-        if album_data.record_labels and len(album_data.record_labels) > 0:
-            label = album_data.record_labels[0].name if hasattr(album_data.record_labels[0], 'name') else str(album_data.record_labels[0])
-
         # Parse genres - use genres field if available, fallback to genre field
         genres: list[str] = []
         if hasattr(album_data, 'genres') and album_data.genres:
@@ -87,12 +82,22 @@ class NavidromeClient:
             raw_genres = album_data.genre.replace(";", ",").split(",")
             genres = [g.strip() for g in raw_genres if g.strip()]
 
-        # Fetch RYM descriptors from raw tags (using first track)
+        # Fetch label, composer, and RYM descriptors from raw tags (using first track)
+        label = None
+        composer = None
         rym_descriptors = None
         if album_data.song and len(album_data.song) > 0:
             try:
                 first_song_id = album_data.song[0].id
                 raw_tags = self.get_raw_tags(first_song_id)
+                if "label" in raw_tags:
+                    # Label can be a list, take the first entry
+                    label_data = raw_tags["label"]
+                    label = label_data[0] if isinstance(label_data, list) and len(label_data) > 0 else label_data
+                if "composer" in raw_tags:
+                    # Composer can be a list, take the first entry
+                    composer_data = raw_tags["composer"]
+                    composer = composer_data[0] if isinstance(composer_data, list) and len(composer_data) > 0 else composer_data
                 if "rym_descriptors" in raw_tags:
                     rym_descriptors = raw_tags["rym_descriptors"]
             except Exception:
@@ -108,6 +113,7 @@ class NavidromeClient:
             label=label,
             cover_art=cover_art,
             tracks=tracks,
+            composer=composer,
             rym_descriptors=rym_descriptors,
         )
 

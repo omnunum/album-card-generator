@@ -8,7 +8,7 @@ from reportlab.lib.colors import Color
 from cardgen.design.base import CardSection, RendererContext
 from cardgen.utils.album_art import AlbumArt
 from cardgen.utils.dimensions import Dimensions, SAFE_MARGIN, inches_to_points
-from cardgen.utils.text import calculate_optimal_char_spacing
+from cardgen.utils.text import calculate_optimal_char_spacing, calculate_text_width
 
 
 @dataclass
@@ -102,8 +102,9 @@ class SpineSection(CardSection):
             word_spacing = char_spacing * 3
 
             # Calculate compressed text length (accounting for both char and word spacing)
-            num_spaces = combined_text.count(' ')
-            compressed_length = text_length + (len(combined_text) * char_spacing) + (num_spaces * word_spacing)
+            compressed_length = calculate_text_width(
+                c, combined_text, context.font_config.family, font_size, char_spacing, word_spacing
+            )
 
             # Check if compressed text now fits
             if compressed_length <= effective_available_length:
@@ -149,7 +150,11 @@ class SpineSection(CardSection):
                     c, artist_text, context.font_config.family, two_line_font_size,
                     effective_available_length, min_spacing=min_char_spacing
                 )
-                artist_compressed = artist_width + (len(artist_text) * artist_char_spacing) + (artist_text.count(' ') * artist_char_spacing * 3)
+                artist_word_spacing = artist_char_spacing * 3
+                artist_compressed = calculate_text_width(
+                    c, artist_text, context.font_config.family, two_line_font_size,
+                    artist_char_spacing, artist_word_spacing
+                )
             else:
                 artist_compressed = artist_width
 
@@ -158,7 +163,11 @@ class SpineSection(CardSection):
                     c, remaining_text, context.font_config.family, two_line_font_size,
                     effective_available_length, min_spacing=min_char_spacing
                 )
-                remaining_compressed = remaining_width + (len(remaining_text) * remaining_char_spacing) + (remaining_text.count(' ') * remaining_char_spacing * 3)
+                remaining_word_spacing = remaining_char_spacing * 3
+                remaining_compressed = calculate_text_width(
+                    c, remaining_text, context.font_config.family, two_line_font_size,
+                    remaining_char_spacing, remaining_word_spacing
+                )
             else:
                 remaining_compressed = remaining_width
 
@@ -240,8 +249,10 @@ class SpineSection(CardSection):
             artist_item = self.text_items[0]
             artist_font = f"{context.font_config.family}-Bold" if artist_item.bold else context.font_config.family
             artist_word_spacing = artist_line_char_spacing * 3
-            artist_width = c.stringWidth(artist_item.text, artist_font, font_size)
-            artist_width += len(artist_item.text) * artist_line_char_spacing + artist_item.text.count(' ') * artist_word_spacing
+            artist_width = calculate_text_width(
+                c, artist_item.text, artist_font, font_size,
+                artist_line_char_spacing, artist_word_spacing
+            )
 
             # Line 2: Remaining items (bottom) - use remaining-specific spacing
             remaining_items = self.text_items[1:]
@@ -254,13 +265,17 @@ class SpineSection(CardSection):
                 text = item.text
                 if i > 0:
                     sep = " • "
-                    sep_width = c.stringWidth(sep, context.font_config.family, font_size)
-                    sep_width += len(sep) * remaining_line_char_spacing + sep.count(' ') * remaining_word_spacing
+                    sep_width = calculate_text_width(
+                        c, sep, context.font_config.family, font_size,
+                        remaining_line_char_spacing, remaining_word_spacing
+                    )
                     remaining_parts.append((sep, context.font_config.family, sep_width, True))
                     remaining_total_width += sep_width
 
-                text_width = c.stringWidth(text, font_name, font_size)
-                text_width += len(text) * remaining_line_char_spacing + text.count(' ') * remaining_word_spacing
+                text_width = calculate_text_width(
+                    c, text, font_name, font_size,
+                    remaining_line_char_spacing, remaining_word_spacing
+                )
                 remaining_parts.append((text, font_name, text_width, False))
                 remaining_total_width += text_width
 
@@ -291,13 +306,15 @@ class SpineSection(CardSection):
                 if i > 0:
                     # Add separator
                     sep = " • "
-                    sep_width = c.stringWidth(sep, context.font_config.family, font_size)
-                    # Account for char spacing on all chars + word spacing on spaces
-                    sep_width += len(sep) * char_spacing + sep.count(' ') * word_spacing
+                    sep_width = calculate_text_width(
+                        c, sep, context.font_config.family, font_size,
+                        char_spacing, word_spacing
+                    )
                     total_width += sep_width
-                text_width = c.stringWidth(text, font_name, font_size)
-                # Account for char spacing on all chars + word spacing on spaces
-                text_width += len(text) * char_spacing + text.count(' ') * word_spacing
+                text_width = calculate_text_width(
+                    c, text, font_name, font_size,
+                    char_spacing, word_spacing
+                )
                 widths.append((text, font_name, text_width, i > 0))
                 total_width += text_width
 
@@ -309,8 +326,10 @@ class SpineSection(CardSection):
                     c.setFont(context.font_config.family, font_size)
                     sep = " • "
                     c.drawString(current_x, -font_size / 3, sep, charSpace=char_spacing, wordSpace=word_spacing)
-                    sep_width = c.stringWidth(sep, context.font_config.family, font_size)
-                    sep_width += len(sep) * char_spacing + sep.count(' ') * word_spacing
+                    sep_width = calculate_text_width(
+                        c, sep, context.font_config.family, font_size,
+                        char_spacing, word_spacing
+                    )
                     current_x += sep_width
 
                 # Draw text

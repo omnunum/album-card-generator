@@ -54,6 +54,7 @@ class DefaultTheme(Theme):
             monospace_family=monospace_family,
             title_size=self.config.title_font_size,
             artist_size=self.config.artist_font_size,
+            subtitle_size=self.config.subtitle_font_size,
             track_size=self.config.track_font_size,
             metadata_size=self.config.metadata_font_size,
         )

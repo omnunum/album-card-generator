@@ -12,6 +12,7 @@ class Track:
     track_number: int
     artist: str | None = None
     album: str | None = None
+    side: str | None = None  # "A", "B", or None if not assigned yet
 
     def format_duration(self) -> str:
         """
@@ -37,6 +38,7 @@ class Album:
     label: str | None
     cover_art: bytes  # Raw image data
     tracks: list[Track]
+    composer: str | None = None
     rym_descriptors: list[str] | None = None  # RateYourMusic descriptors from custom tags
 
     def total_duration(self) -> int:

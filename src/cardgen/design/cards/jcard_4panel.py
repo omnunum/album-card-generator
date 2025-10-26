@@ -14,7 +14,7 @@ from cardgen.utils.dimensions import (
     get_jcard_4_panel_dimensions,
     get_panel_dimensions,
 )
-from cardgen.utils.tape import split_tracks_by_tape_sides
+from cardgen.utils.tape import assign_tape_sides
 
 
 class JCard4Panel(Card):
@@ -39,8 +39,8 @@ class JCard4Panel(Card):
         self.album_art = album_art
         self.panels = get_panel_dimensions()
 
-        # Split tracks into tape sides
-        self.side_a, self.side_b = split_tracks_by_tape_sides(album.tracks, tape_length_minutes)
+        # Assign tracks to tape sides (modifies tracks in place)
+        self.side_capacity = assign_tape_sides(album.tracks, tape_length_minutes)
 
     def get_dimensions(self) -> Dimensions:
         """
@@ -65,8 +65,8 @@ class JCard4Panel(Card):
             TracklistSection(
                 name="inside",
                 dimensions=self.panels["inside"],
-                side_a=self.side_a,
-                side_b=self.side_b,
+                tracks=self.album.tracks,
+                side_capacity=self.side_capacity,
                 title="Tracklist",
                 track_title_overflow=self.theme.get_track_title_overflow(),
                 min_char_spacing=self.theme.get_min_track_title_char_spacing(),

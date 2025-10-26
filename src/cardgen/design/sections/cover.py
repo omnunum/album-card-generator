@@ -5,7 +5,7 @@ from reportlab.lib.colors import Color
 from cardgen.design.base import CardSection, RendererContext
 from cardgen.utils.album_art import AlbumArt
 from cardgen.utils.dimensions import SAFE_MARGIN, Dimensions, inches_to_points
-from cardgen.utils.text import calculate_max_font_size
+from cardgen.utils.text import calculate_max_font_size, wrap_text_to_width
 
 
 class CoverSection(CardSection):
@@ -112,26 +112,10 @@ class CoverSection(CardSection):
             c.drawCentredString(context.x + context.width / 2, text_y, self.artist)
         else:
             # Multi-line artist - split at word boundaries
-            words = self.artist.split()
-            lines = []
-            current_line = []
-
-            for word in words:
-                test_line = " ".join(current_line + [word])
-                test_width = c.stringWidth(test_line, context.font_config.family, artist_size)
-
-                if test_width <= available_text_width:
-                    current_line.append(word)
-                else:
-                    if current_line:
-                        lines.append(" ".join(current_line))
-                        current_line = [word]
-                    else:
-                        # Single word too long, force it
-                        lines.append(word)
-
-            if current_line:
-                lines.append(" ".join(current_line))
+            lines = wrap_text_to_width(
+                c, self.artist, available_text_width, context.font_config.family, artist_size,
+                mode="multi_line"
+            )
 
             # Draw each line centered
             c.setFont(context.font_config.family, artist_size)
@@ -146,16 +130,9 @@ class CoverSection(CardSection):
             # Update text_y to account for multiple lines
             text_y -= total_artist_height
 
-        # Title - use dynamic sizing to fit within panel width
+        # Title - use configured title size
         title_font_name = f"{context.font_config.family}-Bold"
-
-        # Calculate optimal title size
-        title_size = calculate_max_font_size(
-            c, self.title, title_font_name, available_text_width,
-            context.font_config.title_size * 2,  # Allow up to 2x normal size
-            min_size=8, max_size=context.font_config.title_size + 4,
-            safe_margin=0  # Already accounted for above
-        )
+        title_size = context.font_config.title_size
 
         # Check if title fits on one line
         title_width = c.stringWidth(self.title, title_font_name, title_size)
@@ -166,28 +143,12 @@ class CoverSection(CardSection):
             text_y -= title_size + 4
             c.drawCentredString(context.x + context.width / 2, text_y, self.title)
             return
-        
+
         # Multi-line title - split at word boundaries
-        words = self.title.split()
-        lines = []
-        current_line = []
-
-        for word in words:
-            test_line = " ".join(current_line + [word])
-            test_width = c.stringWidth(test_line, title_font_name, title_size)
-
-            if test_width <= available_text_width:
-                current_line.append(word)
-            else:
-                if current_line:
-                    lines.append(" ".join(current_line))
-                    current_line = [word]
-                else:
-                    # Single word too long, force it
-                    lines.append(word)
-
-        if current_line:
-            lines.append(" ".join(current_line))
+        lines = wrap_text_to_width(
+            c, self.title, available_text_width, title_font_name, title_size,
+            mode="multi_line"
+        )
 
         # Draw each line centered
         c.setFont(title_font_name, title_size)

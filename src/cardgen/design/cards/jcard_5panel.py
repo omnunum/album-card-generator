@@ -19,7 +19,7 @@ from cardgen.utils.dimensions import (
     JCARD_SPINE_WIDTH,
     Dimensions,
 )
-from cardgen.utils.tape import split_tracks_by_tape_sides
+from cardgen.utils.tape import assign_tape_sides
 
 
 def create_jcard_5panel(
@@ -39,8 +39,8 @@ def create_jcard_5panel(
     Returns:
         JCard with 5 panels configured.
     """
-    # Split tracks into tape sides
-    side_a, side_b = split_tracks_by_tape_sides(album.tracks, tape_length_minutes)
+    # Assign tracks to tape sides (modifies tracks in place)
+    side_capacity = assign_tape_sides(album.tracks, tape_length_minutes)
 
     # Define panel widths
     genre_panel_width = JCARD_PANEL_WIDTH  # Full-size panel (2.5") for genre/descriptors
@@ -90,8 +90,8 @@ def create_jcard_5panel(
         TracklistSection(
             name="inside",
             dimensions=Dimensions(width=JCARD_PANEL_WIDTH, height=JCARD_HEIGHT),
-            side_a=side_a,
-            side_b=side_b,
+            tracks=album.tracks,
+            side_capacity=side_capacity,
             title="Tracklist",
             track_title_overflow=theme.get_track_title_overflow(),
             min_char_spacing=theme.get_min_track_title_char_spacing(),

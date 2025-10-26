@@ -6,6 +6,7 @@ from cardgen.api.models import Album
 from cardgen.design.base import CardSection, RendererContext
 from cardgen.utils.dimensions import Dimensions
 from cardgen.utils.genres import build_genre_tree
+from cardgen.utils.text import wrap_text_to_width
 
 
 class GenreDescriptorsSection(CardSection):
@@ -86,43 +87,12 @@ class GenreDescriptorsSection(CardSection):
         if descriptor_text and text_y >= context.y + padding:
             c.setFont(context.font_config.family, self.font_size)
             # Word wrap the descriptor text
-            wrapped_lines = self._wrap_text(c, descriptor_text, available_width, context.font_config.family, self.font_size)
+            wrapped_lines = wrap_text_to_width(
+                c, descriptor_text, available_width, context.font_config.family, self.font_size,
+                mode="multi_line"
+            )
             for line in wrapped_lines:
                 if text_y < context.y + padding:
                     break
                 c.drawString(context.x + padding, text_y, line)
                 text_y -= line_height
-
-    def _wrap_text(self, c, text: str, max_width: float, font_family: str, font_size: float) -> list[str]:
-        """
-        Wrap text to fit within max_width.
-
-        Args:
-            c: Canvas for measuring text width.
-            text: Text to wrap.
-            max_width: Maximum width in points.
-            font_family: Font family name.
-            font_size: Font size in points.
-
-        Returns:
-            List of wrapped lines.
-        """
-        words = text.split()
-        lines = []
-        current_line = ""
-
-        for word in words:
-            test_line = f"{current_line} {word}".strip()
-            width = c.stringWidth(test_line, font_family, font_size)
-
-            if width <= max_width:
-                current_line = test_line
-            else:
-                if current_line:
-                    lines.append(current_line)
-                current_line = word
-
-        if current_line:
-            lines.append(current_line)
-
-        return lines

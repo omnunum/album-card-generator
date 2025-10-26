@@ -38,6 +38,7 @@ class FontConfig:
     monospace_family: str  # For fixed-width content (track numbers, durations)
     title_size: int
     artist_size: int
+    subtitle_size: int  # For side headers (Side A/B) and minimap
     track_size: int
     metadata_size: int
 

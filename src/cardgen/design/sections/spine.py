@@ -1,21 +1,16 @@
 """Spine section implementation."""
 
-from dataclasses import dataclass
+import os
 from typing import Optional
 
+from reportlab.graphics import renderPDF
 from reportlab.lib.colors import Color
+from svglib.svglib import svg2rlg
 
 from cardgen.design.base import CardSection, RendererContext
 from cardgen.utils.album_art import AlbumArt
-from cardgen.utils.dimensions import Dimensions, SAFE_MARGIN, inches_to_points
-from cardgen.utils.text import calculate_optimal_char_spacing, calculate_text_width
-
-
-@dataclass
-class SpineTextItem:
-    """A text item for the spine with optional bold styling."""
-    text: str
-    bold: bool = False
+from cardgen.utils.dimensions import Dimensions, inches_to_points
+from cardgen.utils.text import Line, fit_text_block
 
 
 class SpineSection(CardSection):
@@ -25,8 +20,9 @@ class SpineSection(CardSection):
         self,
         name: str,
         dimensions: Dimensions,
-        text_lines: list[str] | list[SpineTextItem],
+        text_lines: list[str],
         album_art: Optional[AlbumArt] = None,
+        show_dolby_logo: bool = False,
     ) -> None:
         """
         Initialize spine section.
@@ -34,307 +30,195 @@ class SpineSection(CardSection):
         Args:
             name: Section name.
             dimensions: Section dimensions.
-            text_lines: List of text lines (strings or SpineTextItem objects).
+            text_lines: List of text strings for spine.
             album_art: Optional AlbumArt object for image processing.
+            show_dolby_logo: Whether to show the Dolby NR logo on the spine.
         """
         super().__init__(name, dimensions)
         self.album_art = album_art
-        # Convert strings to SpineTextItem if needed
-        self.text_items: list[SpineTextItem] = []
-        for item in text_lines:
-            if isinstance(item, str):
-                self.text_items.append(SpineTextItem(text=item))
-            else:
-                self.text_items.append(item)
+        self.text_items: list[str] = text_lines
+        self.show_dolby_logo = show_dolby_logo
 
-    def render(self, context: RendererContext) -> None:
-        """Render spine with vertical text and optional album art, sized to fit available space."""
+    def _build_text_lines(self, context: RendererContext) -> list[Line]:
+        """
+        Build Line objects for spine text.
+
+        Args:
+            context: Rendering context with font configuration.
+
+        Returns:
+            List containing a single Line object with combined spine text.
+        """
+        # Combine all text items with bullet separators
+        combined_text = " • ".join(self.text_items)
+
+        # Create a single line with bold font
+        return [Line(
+            text=combined_text,
+            point_size=30,  # Start large to fill spine width, fit_text_block will reduce if needed
+            leading_ratio=0.0,  # No line spacing for single line
+            fixed_size=False,  # Allow size reduction
+            font_family=f"{context.font_config.family}-Bold"  # All bold
+        )]
+
+    def _render_fitted_lines(
+        self,
+        context: RendererContext,
+        fitted_lines: list[Line],
+        album_art_offset: float
+    ) -> None:
+        """
+        Render fitted spine text with rotation.
+
+        Args:
+            context: Rendering context.
+            fitted_lines: Fitted Line objects from fit_text_block.
+            album_art_offset: Vertical offset to account for album art.
+        """
         c = context.canvas
 
-        c.setFillColor(Color(*context.color_scheme.text))
+        # Save state for rotation
+        c.saveState()
 
-        # Calculate album art size if present (0.5" x 0.5" square, full bleed)
+        # Translate to center of spine, offset for album art if present
+        c.translate(
+            context.x + context.width / 2,
+            context.y + context.height / 2 + album_art_offset
+        )
+        c.rotate(90)  # 90 degrees counterclockwise
+
+        # Render the single text line (centered)
+        if fitted_lines:
+            fitted_line = fitted_lines[0]
+            c.setFont(fitted_line.font_family, fitted_line.point_size)
+            c.setFillColor(Color(*context.color_scheme.text))
+
+            # Calculate text width with scaling
+            base_width = c.stringWidth(fitted_line.text, fitted_line.font_family, fitted_line.point_size)
+            scaled_width = base_width * fitted_line.horizontal_scale
+
+            # Draw centered text with horizontal scaling if needed
+            if fitted_line.horizontal_scale < 1.0:
+                c.saveState()
+                c.translate(-scaled_width / 2, -fitted_line.point_size / 3)
+                c.scale(fitted_line.horizontal_scale, 1.0)
+                c.drawString(0, 0, fitted_line.text)
+                c.restoreState()
+            else:
+                c.drawString(-scaled_width / 2, -fitted_line.point_size / 3, fitted_line.text)
+
+        c.restoreState()
+
+    def render(self, context: RendererContext) -> None:
+        """Render spine with vertical text and optional album art using fit_text_block."""
+        c = context.canvas
+
+        # Calculate album art size if present
         album_art_size = inches_to_points(0.5) if self.album_art else 0
         album_art_gap = 6 if self.album_art else 0  # Small gap between art and text
 
-        # Calculate the largest font size that will fit
-        # Available length is the height (since text is rotated 90 degrees)
-        available_length = context.height - (context.padding * 2)
-        available_width = context.width - (context.padding * 2)
+        # Calculate Dolby logo size if present - half the spine height
+        dolby_logo_height = (context.width / 2) if self.show_dolby_logo else 0
+        dolby_logo_gap = 6 if self.show_dolby_logo else 0  # Small gap between logo and text
 
-        # Apply safe margin to prevent text bleeding into adjacent panels
-        # Reduced safe margin for spine - only need small buffer
-        spine_safe_margin = 0.0625  # 1/16" = 4.5pt (half of standard SAFE_MARGIN)
-        safe_margin_pts = inches_to_points(spine_safe_margin)
-        effective_available_length = available_length - (safe_margin_pts * 2) - album_art_size - album_art_gap
+        # Calculate available space for text
+        # Spine safe margin to prevent bleeding
+        spine_safe_margin_pts = inches_to_points(0.0625)  # 1/16"
 
-        # Combine text to calculate width (using bold where needed)
-        combined_text = " • ".join([item.text for item in self.text_items])
+        # After rotation: height becomes length (horizontal), width becomes height (vertical)
+        available_length = context.height - (2 * context.padding) - (2 * spine_safe_margin_pts) - album_art_size - album_art_gap - dolby_logo_height - dolby_logo_gap
+        available_width = context.width - (2 * context.padding)
 
-        # Strategy: Start with maximum font size that fills the spine width (text height),
-        # then compress character spacing if needed. Only reduce font size when we hit
-        # minimum character spacing threshold AND text still doesn't fit.
-
-        # Start with font size that fills the available width (height constraint for rotated spine text)
-        font_size = available_width  # Max 36pt for 0.5" spine (full width)
-        min_font_size = 6
-        min_char_spacing = -0.3  # Minimum kerning before we reduce font size (prevent overlap)
-        char_spacing = 0.0
-
-        # Find optimal font size by iterating down from maximum
-        while font_size >= min_font_size:
-            # Measure text length at this font size (normal spacing)
-            text_length = c.stringWidth(combined_text, context.font_config.family, font_size)
-
-            # Check if text fits with normal spacing
-            if text_length <= effective_available_length:
-                # Perfect! Use this size with normal spacing
-                char_spacing = 0.0
-                break
-
-            # Text too long - try compressing character spacing first
-            char_spacing = calculate_optimal_char_spacing(
-                c, combined_text, context.font_config.family, font_size,
-                effective_available_length, min_spacing=min_char_spacing
-            )
-
-            # Calculate word spacing (proportionally more compression for spaces)
-            word_spacing = char_spacing * 3
-
-            # Calculate compressed text length (accounting for both char and word spacing)
-            compressed_length = calculate_text_width(
-                c, combined_text, context.font_config.family, font_size, char_spacing, word_spacing
-            )
-
-            # Check if compressed text now fits
-            if compressed_length <= effective_available_length:
-                # Found it! Use this font size with compressed spacing
-                break
-
-            # Even with max compression doesn't fit - reduce font size and try again
-            font_size -= 0.5
-
-        # Ensure we don't go below minimum font size
-        font_size = max(font_size, min_font_size)
-
-        # Check if we should switch to two-line mode
-        # If font size is very small (< 10pt) and we have at least 2 items, try two-line layout
-        use_two_line_mode = False
-        artist_line_char_spacing = 0.0
-        remaining_line_char_spacing = 0.0
-
-        import sys
-        print(f"DEBUG SPINE: font_size={font_size:.1f}pt, items={len(self.text_items)}, text='{combined_text[:50]}'", file=sys.stderr)
-
-        if font_size < 10 and len(self.text_items) >= 2:
-            # Calculate if two lines would allow bigger font
-            # Two lines: each gets half the width
-            two_line_font_size = available_width / 2  # Each line gets half the width
-
-            # Check if first item (artist) fits on one line at this size (with compression if needed)
-            artist_text = self.text_items[0].text
-            artist_width = c.stringWidth(artist_text, context.font_config.family, two_line_font_size)
-
-            # Check if remaining items fit on second line (with compression if needed)
-            remaining_text = " • ".join([item.text for item in self.text_items[1:]])
-            remaining_width = c.stringWidth(remaining_text, context.font_config.family, two_line_font_size)
-
-            print(f"DEBUG TWO-LINE CHECK: two_line_font={two_line_font_size:.1f}pt, artist_width={artist_width:.1f}, remaining_width={remaining_width:.1f}, available_length={effective_available_length:.1f}", file=sys.stderr)
-
-            # Calculate compression needed for each line
-            artist_char_spacing = 0.0
-            remaining_char_spacing = 0.0
-
-            if artist_width > effective_available_length:
-                artist_char_spacing = calculate_optimal_char_spacing(
-                    c, artist_text, context.font_config.family, two_line_font_size,
-                    effective_available_length, min_spacing=min_char_spacing
-                )
-                artist_word_spacing = artist_char_spacing * 3
-                artist_compressed = calculate_text_width(
-                    c, artist_text, context.font_config.family, two_line_font_size,
-                    artist_char_spacing, artist_word_spacing
-                )
-            else:
-                artist_compressed = artist_width
-
-            if remaining_width > effective_available_length:
-                remaining_char_spacing = calculate_optimal_char_spacing(
-                    c, remaining_text, context.font_config.family, two_line_font_size,
-                    effective_available_length, min_spacing=min_char_spacing
-                )
-                remaining_word_spacing = remaining_char_spacing * 3
-                remaining_compressed = calculate_text_width(
-                    c, remaining_text, context.font_config.family, two_line_font_size,
-                    remaining_char_spacing, remaining_word_spacing
-                )
-            else:
-                remaining_compressed = remaining_width
-
-            print(f"DEBUG COMPRESSION: artist_compressed={artist_compressed:.1f}, remaining_compressed={remaining_compressed:.1f}", file=sys.stderr)
-
-            # If both lines fit with compression OR if two-line mode gives us bigger font than single line
-            if (artist_compressed <= effective_available_length and remaining_compressed <= effective_available_length) or two_line_font_size > font_size:
-                use_two_line_mode = True
-                font_size = two_line_font_size
-                # Store per-line char spacing
-                artist_line_char_spacing = artist_char_spacing
-                remaining_line_char_spacing = remaining_char_spacing
-                # For single-line fallback compatibility, use the worst spacing
-                char_spacing = min(artist_char_spacing, remaining_char_spacing)
-                print(f"DEBUG: SWITCHING TO TWO-LINE MODE! artist_spacing={artist_line_char_spacing:.2f}, remaining_spacing={remaining_line_char_spacing:.2f}", file=sys.stderr)
-
-        # Render album art if present (rotated 90 degrees to align with spine text)
+        # Render album art if present
         if self.album_art:
-            # Album art: 0.5" x 0.5" square at top of spine (full bleed)
-            art_size = inches_to_points(0.5)
+            art_dims = Dimensions(width=0.5, height=0.5, dpi=context.dpi)
+            point_dims = art_dims.to_points()
+            pixel_dims = art_dims.to_pixels()
 
-            # Resize and crop album art to square
-            target_px = int((art_size / 72) * context.dpi)
-            processed_img = self.album_art.resize_and_crop((target_px, target_px), mode="square")
+            processed_img = self.album_art.resize_and_crop((pixel_dims.width, pixel_dims.height), mode="square")
 
-            # Save state for rotation
             c.saveState()
-
-            # Calculate center point of where the album art will be
-            # Position at top of spine
             art_center_x = context.x + context.width / 2
-            art_center_y = context.y + context.height - (art_size / 2)
-
-            # Translate to center point, rotate 90 degrees, then draw
+            art_center_y = context.y + context.height - (point_dims.height / 2)
             c.translate(art_center_x, art_center_y)
             c.rotate(90)
 
-            # Convert PIL image to ImageReader
             img_reader = self.album_art.to_image_reader(processed_img)
-
-            # Draw image centered at origin (which is now the rotated center point)
-            c.drawImage(
-                img_reader,
-                -art_size / 2,
-                -art_size / 2,
-                width=art_size,
-                height=art_size,
-                preserveAspectRatio=True,
-            )
-
-            # Restore state after drawing rotated image
+            c.drawImage(img_reader, -point_dims.width / 2, -point_dims.height / 2, width=point_dims.width, height=point_dims.height, preserveAspectRatio=True)
             c.restoreState()
 
-        # Save state, rotate, and draw vertical text
-        c.saveState()
+        # Render Dolby logo if requested
+        if self.show_dolby_logo:
+            # Load the white Dolby logo SVG
+            assets_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'assets')
+            logo_path = os.path.join(assets_dir, 'dolby-b-logo-white.svg')
 
-        # Rotate 90 degrees counterclockwise and position text
-        # If we have album art, we need to shift the text center down to account for it
-        # The text should be centered in the remaining space (after album art + gap)
-        text_center_offset = 0
-        if self.album_art:
-            # Offset = half of (album_art_size + gap) to shift center point down
-            text_center_offset = -(album_art_size + album_art_gap) / 2
+            if os.path.exists(logo_path):
+                drawing = svg2rlg(logo_path)
 
-        c.translate(
-            context.x + context.width / 2,
-            context.y + context.height / 2 + text_center_offset
+                # Calculate logo dimensions (half the spine height, maintaining aspect ratio)
+                logo_height = dolby_logo_height
+                aspect_ratio = drawing.width / drawing.height
+                logo_width = logo_height * aspect_ratio
+
+                # Scale the drawing
+                scale_factor = logo_height / drawing.height
+                drawing.width = logo_width
+                drawing.height = logo_height
+                drawing.scale(scale_factor, scale_factor)
+
+                c.saveState()
+                # Position logo to the left of text (after album art if present)
+                logo_center_x = context.x + context.width / 2
+                logo_y_offset = context.height - album_art_size - album_art_gap - (dolby_logo_height / 2)
+                logo_center_y = context.y + logo_y_offset
+
+                c.translate(logo_center_x, logo_center_y)
+                c.rotate(90)
+
+                # Center the logo
+                renderPDF.draw(drawing, c, -logo_width / 2, -logo_height / 2)
+                c.restoreState()
+
+        # Draw white border around text/logo area (non-album-art section)
+        # Border extends to album art edge (gap is only for text/logo positioning)
+        border_thickness = 1.5
+        border_y_start = context.y
+        border_y_end = context.y + context.height - album_art_size  # No gap subtraction
+        border_height = border_y_end - border_y_start
+
+        # Inset by half border thickness so entire border is inside
+        border_inset = border_thickness / 2
+
+        c.setStrokeColor(Color(1.0, 1.0, 1.0))  # White border
+        c.setLineWidth(border_thickness)
+        c.rect(
+            context.x + border_inset,
+            border_y_start + border_inset,
+            context.width - border_thickness,
+            border_height - border_thickness,
+            fill=0,
+            stroke=1
         )
-        c.rotate(90)
 
-        # Calculate word spacing - need to compress spaces proportionally to char_spacing
-        word_spacing = char_spacing * 3  # Spaces need ~3x compression to match char compression
+        # Build text lines
+        lines = self._build_text_lines(context)
 
-        if use_two_line_mode:
-            # Two-line layout: Artist on top line, Title • Year on bottom line
-            line_gap = 2  # Gap between the two lines
+        # Fit text to available space
+        fitted_lines = fit_text_block(
+            c, lines, context,
+            max_width=available_length,  # Length constraint (horizontal after rotation)
+            max_height=available_width,  # Width constraint (vertical after rotation)
+            min_horizontal_scale=0.7,
+            split_max=1,  # Allow splitting to 2 lines if needed
+            min_point_size=6.0
+        )
 
-            # Line 1: Artist (top) - use artist-specific spacing
-            artist_item = self.text_items[0]
-            artist_font = f"{context.font_config.family}-Bold" if artist_item.bold else context.font_config.family
-            artist_word_spacing = artist_line_char_spacing * 3
-            artist_width = calculate_text_width(
-                c, artist_item.text, artist_font, font_size,
-                artist_line_char_spacing, artist_word_spacing
-            )
+        # Calculate text center offset for album art and Dolby logo
+        text_center_offset = 0
+        if self.album_art or self.show_dolby_logo:
+            total_offset = album_art_size + album_art_gap + dolby_logo_height + dolby_logo_gap
+            text_center_offset = -total_offset / 2
 
-            # Line 2: Remaining items (bottom) - use remaining-specific spacing
-            remaining_items = self.text_items[1:]
-            remaining_parts = []
-            remaining_total_width = 0
-            remaining_word_spacing = remaining_line_char_spacing * 3
-
-            for i, item in enumerate(remaining_items):
-                font_name = f"{context.font_config.family}-Bold" if item.bold else context.font_config.family
-                text = item.text
-                if i > 0:
-                    sep = " • "
-                    sep_width = calculate_text_width(
-                        c, sep, context.font_config.family, font_size,
-                        remaining_line_char_spacing, remaining_word_spacing
-                    )
-                    remaining_parts.append((sep, context.font_config.family, sep_width, True))
-                    remaining_total_width += sep_width
-
-                text_width = calculate_text_width(
-                    c, text, font_name, font_size,
-                    remaining_line_char_spacing, remaining_word_spacing
-                )
-                remaining_parts.append((text, font_name, text_width, False))
-                remaining_total_width += text_width
-
-            # Draw Line 1 (artist) - top half
-            c.setFont(artist_font, font_size)
-            line1_y = font_size / 2 + line_gap / 2
-            c.drawString(-artist_width / 2, line1_y - font_size / 3, artist_item.text,
-                        charSpace=artist_line_char_spacing, wordSpace=artist_word_spacing)
-
-            # Draw Line 2 (title + year) - bottom half
-            line2_y = -font_size / 2 - line_gap / 2
-            current_x = -remaining_total_width / 2
-            for text, font_name, text_width, is_sep in remaining_parts:
-                c.setFont(font_name, font_size)
-                c.drawString(current_x, line2_y - font_size / 3, text,
-                            charSpace=remaining_line_char_spacing, wordSpace=remaining_word_spacing)
-                current_x += text_width
-        else:
-            # Single-line layout (original)
-            # Calculate total width for centering (accounting for character and word spacing)
-            total_width = 0
-            current_x = 0
-            widths = []
-
-            for i, item in enumerate(self.text_items):
-                font_name = f"{context.font_config.family}-Bold" if item.bold else context.font_config.family
-                text = item.text
-                if i > 0:
-                    # Add separator
-                    sep = " • "
-                    sep_width = calculate_text_width(
-                        c, sep, context.font_config.family, font_size,
-                        char_spacing, word_spacing
-                    )
-                    total_width += sep_width
-                text_width = calculate_text_width(
-                    c, text, font_name, font_size,
-                    char_spacing, word_spacing
-                )
-                widths.append((text, font_name, text_width, i > 0))
-                total_width += text_width
-
-            # Draw each segment
-            current_x = -total_width / 2
-            for text, font_name, text_width, has_separator in widths:
-                if has_separator:
-                    # Draw separator
-                    c.setFont(context.font_config.family, font_size)
-                    sep = " • "
-                    c.drawString(current_x, -font_size / 3, sep, charSpace=char_spacing, wordSpace=word_spacing)
-                    sep_width = calculate_text_width(
-                        c, sep, context.font_config.family, font_size,
-                        char_spacing, word_spacing
-                    )
-                    current_x += sep_width
-
-                # Draw text
-                c.setFont(font_name, font_size)
-                c.drawString(current_x, -font_size / 3, text, charSpace=char_spacing, wordSpace=word_spacing)
-                current_x += text_width
-
-        c.restoreState()
+        # Render fitted text
+        self._render_fitted_lines(context, fitted_lines, text_center_offset)

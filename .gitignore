@@ -47,3 +47,5 @@ output/
 
 **/fonts/*.ttf
 **/fonts/*.otf
+
+.DS_Store

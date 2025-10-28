@@ -6,7 +6,7 @@ import click
 
 from cardgen.api import NavidromeClient
 from cardgen.config import format_output_name, load_config
-from cardgen.design import JCard4Panel, create_jcard_5panel
+from cardgen.design import JCard4Panel, JCard5Panel
 from cardgen.design.themes import DefaultTheme
 from cardgen.fonts import register_fonts
 from cardgen.render import PDFRenderer
@@ -88,6 +88,11 @@ def main() -> None:
     type=click.Choice(["center", "left", "right"], case_sensitive=False),
     help="Horizontal alignment for fullscale mode: 'center' (default), 'left', or 'right'.",
 )
+@click.option(
+    "--dolby-logo",
+    is_flag=True,
+    help="Show Dolby NR logo on the spine (takes up half the spine height).",
+)
 def album(
     urls: tuple[str, ...],
     output: Path | None,
@@ -102,6 +107,7 @@ def album(
     tape_length: int,
     cover_art_mode: str | None,
     cover_art_align: str | None,
+    dolby_logo: bool,
 ) -> None:
     """
     Generate j-cards from one or more Navidrome albums.
@@ -134,6 +140,8 @@ def album(
             # Fetch album data
             click.echo(f"Fetching album {resource_id}...")
             album_data = client.get_album(resource_id)
+            # Set Dolby logo flag if requested
+            album_data.show_dolby_logo = dolby_logo
             click.echo(f"  Found: {album_data.artist} - {album_data.title}")
             albums.append(album_data)
 
@@ -224,7 +232,7 @@ def album(
             if selected_card_type == "jcard_4panel":
                 card = JCard4Panel(album_data, theme_obj, album_art_obj, tape_length_minutes=tape_length)
             else:  # jcard_5panel
-                card = create_jcard_5panel(album_data, theme_obj, album_art_obj, tape_length_minutes=tape_length)
+                card = JCard5Panel(album_data, theme_obj, album_art_obj, tape_length_minutes=tape_length)
             cards.append(card)
 
         # Render PDF

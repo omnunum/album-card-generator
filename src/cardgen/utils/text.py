@@ -55,408 +55,6 @@ def calculate_max_font_size(
     return best_size
 
 
-def calculate_optimal_char_spacing(
-    canvas: Canvas, text: str, font_family: str, font_size: float, max_width: float,
-    min_spacing: float = -0.5, max_spacing: float = 0.5
-) -> float:
-    """
-    Calculate optimal character spacing to fit text within max_width.
-
-    Args:
-        canvas: ReportLab canvas for measuring text.
-        text: Text to measure.
-        font_family: Font family name.
-        font_size: Font size in points.
-        max_width: Maximum width for the text.
-        min_spacing: Minimum character spacing in points (negative = tighter, default: -0.5).
-        max_spacing: Maximum character spacing in points (positive = looser, default: 0.5).
-
-    Returns:
-        Optimal character spacing in points. Returns 0 if text fits without adjustment.
-    """
-    # Check if text already fits with normal spacing
-    normal_width = canvas.stringWidth(text, font_family, font_size)
-
-    if normal_width <= max_width:
-        return 0.0
-
-    # Text is too wide - try tightening (negative spacing)
-    # Binary search for optimal spacing
-    left, right = min_spacing, 0.0
-    best_spacing = min_spacing
-
-    for _ in range(20):  # Binary search iterations
-        mid = (left + right) / 2
-        # Approximate width with character spacing
-        # Each character adds `spacing` to the total width
-        # Spaces get both charSpace AND wordSpace (3x compression)
-        num_spaces = text.count(' ')
-        word_spacing = mid * 3
-        adjusted_width = normal_width + (len(text) - 1) * mid + num_spaces * word_spacing
-
-        if adjusted_width <= max_width:
-            best_spacing = mid
-            right = mid
-        else:
-            left = mid
-
-    return best_spacing
-
-
-def calculate_text_width(
-    canvas: Canvas, text: str, font_family: str, font_size: float,
-    char_spacing: float = 0.0, word_spacing: float = 0.0
-) -> float:
-    """
-    Calculate text width accounting for character and word spacing.
-
-    Args:
-        canvas: ReportLab canvas for measuring text.
-        text: Text to measure.
-        font_family: Font family name.
-        font_size: Font size in points.
-        char_spacing: Character spacing in points (default: 0.0).
-        word_spacing: Word spacing in points (default: 0.0).
-
-    Returns:
-        Total text width in points.
-    """
-    base_width = canvas.stringWidth(text, font_family, font_size)
-    width_with_spacing = base_width + (len(text) * char_spacing) + (text.count(' ') * word_spacing)
-    return width_with_spacing
-
-
-def wrap_text_to_width(
-    canvas: Canvas, text: str, max_width: float, font_family: str, font_size: float,
-    char_spacing: float = 0.0, word_spacing: float = 0.0,
-    mode: str = "multi_line"
-) -> list[str] | tuple[str, str]:
-    """
-    Wrap text at word boundaries to fit within max_width.
-
-    Args:
-        canvas: ReportLab canvas for measuring text.
-        text: Text to wrap.
-        max_width: Maximum width in points.
-        font_family: Font family name.
-        font_size: Font size in points.
-        char_spacing: Character spacing in points (default: 0.0).
-        word_spacing: Word spacing in points (default: 0.0).
-        mode: "multi_line" returns list of all lines, "two_part" returns (first_line, remainder).
-
-    Returns:
-        List of wrapped lines (multi_line mode) or tuple of (first_line, remainder) (two_part mode).
-    """
-    words = text.split()
-
-    if mode == "two_part":
-        # Two-part mode: return (first_line, remainder)
-        first_line = ""
-        remainder = text
-
-        for i, word in enumerate(words):
-            test_line = " ".join(words[:i+1])
-            width = calculate_text_width(canvas, test_line, font_family, font_size, char_spacing, word_spacing)
-
-            if width <= max_width:
-                first_line = test_line
-                remainder = " ".join(words[i+1:])
-            else:
-                break
-
-        # If no words fit, split at character boundary
-        if not first_line:
-            for i in range(len(text), 0, -1):
-                test_text = text[:i]
-                width = calculate_text_width(canvas, test_text, font_family, font_size, char_spacing, word_spacing)
-                if width <= max_width:
-                    first_line = test_text
-                    remainder = text[i:]
-                    break
-
-        return first_line, remainder
-
-    else:
-        # Multi-line mode: return list of all wrapped lines
-        lines = []
-        current_line = ""
-
-        for word in words:
-            test_line = f"{current_line} {word}".strip()
-            width = calculate_text_width(canvas, test_line, font_family, font_size, char_spacing, word_spacing)
-
-            if width <= max_width:
-                current_line = test_line
-            else:
-                if current_line:
-                    lines.append(current_line)
-                current_line = word
-
-        if current_line:
-            lines.append(current_line)
-
-        return lines
-
-
-def truncate_text_with_ellipsis(
-    canvas: Canvas, text: str, max_width: float, font_family: str, font_size: float,
-    char_spacing: float = 0.0, word_spacing: float = 0.0,
-    ellipsis: str = "…"
-) -> str:
-    """
-    Truncate text with ellipsis to fit within max_width using binary search.
-
-    Args:
-        canvas: ReportLab canvas for measuring text.
-        text: Text to truncate.
-        max_width: Maximum width in points.
-        font_family: Font family name.
-        font_size: Font size in points.
-        char_spacing: Character spacing in points (default: 0.0).
-        word_spacing: Word spacing in points (default: 0.0).
-        ellipsis: Ellipsis character(s) to append (default: "…").
-
-    Returns:
-        Truncated text with ellipsis if needed, or original text if it fits.
-    """
-    # Check if text already fits
-    text_width = calculate_text_width(canvas, text, font_family, font_size, char_spacing, word_spacing)
-    if text_width <= max_width:
-        return text
-
-    # Calculate ellipsis width
-    ellipsis_width = calculate_text_width(canvas, ellipsis, font_family, font_size, char_spacing, 0)
-    available_text_width = max_width - ellipsis_width
-
-    # Binary search for the right length
-    left, right = 0, len(text)
-    best_length = 0
-
-    while left <= right:
-        mid = (left + right) // 2
-        truncated_text = text[:mid]
-        width = calculate_text_width(canvas, truncated_text, font_family, font_size, char_spacing, word_spacing)
-
-        if width <= available_text_width:
-            best_length = mid
-            left = mid + 1
-        else:
-            right = mid - 1
-
-    return text[:best_length] + ellipsis
-
-
-def fit_text_adaptive(
-    canvas: Canvas, text: str, max_width: float, font_family: str, font_size: float,
-    word_spacing: float = 0.0, min_char_spacing: float = -1.0,
-    allow_wrap: bool = False, max_width_line2: float | None = None
-) -> dict:
-    """
-    Adaptively fit text with fallback strategies: compress → wrap → truncate.
-
-    Args:
-        canvas: ReportLab canvas for measuring text.
-        text: Text to fit.
-        max_width: Maximum width for the text (or first line if wrapping).
-        font_family: Font family name.
-        font_size: Font size in points.
-        word_spacing: Word spacing in points (default: 0.0).
-        min_char_spacing: Minimum character spacing threshold (default: -1.0).
-        allow_wrap: Allow wrapping to multiple lines (default: False).
-        max_width_line2: Maximum width for second line if wrapping (defaults to max_width).
-
-    Returns:
-        {
-            'text': str or list[str],  # Single string or list if wrapped
-            'char_spacing': float or list[float],  # Single value or list if wrapped
-            'truncated': bool
-        }
-    """
-    # Step 1: Try normal spacing
-    text_width = calculate_text_width(canvas, text, font_family, font_size, 0.0, word_spacing)
-
-    if text_width <= max_width:
-        return {'text': text, 'char_spacing': 0.0, 'truncated': False}
-
-    # Step 2: Calculate compression needed
-    if len(text) > 0:
-        char_spacing = (max_width - text_width) / len(text)
-    else:
-        char_spacing = 0.0
-
-    if char_spacing >= min_char_spacing:
-        # Compression is acceptable
-        return {'text': text, 'char_spacing': char_spacing, 'truncated': False}
-
-    # Step 3: Try wrapping if allowed
-    if allow_wrap:
-        max_width_line2 = max_width_line2 or max_width
-        first_line, remainder = wrap_text_to_width(
-            canvas, text, max_width, font_family, font_size, 0.0, word_spacing, mode="two_part"
-        )
-
-        if remainder:
-            # Calculate widths for both lines
-            line1_width = calculate_text_width(canvas, first_line, font_family, font_size, 0.0, word_spacing)
-            line2_width = calculate_text_width(canvas, remainder, font_family, font_size, 0.0, word_spacing)
-
-            # Check if both lines fit with normal spacing
-            if line1_width <= max_width and line2_width <= max_width_line2:
-                return {'text': [first_line, remainder], 'char_spacing': [0.0, 0.0], 'truncated': False}
-
-            # Calculate compression for each line
-            line1_char_spacing = (max_width - line1_width) / len(first_line) if len(first_line) > 0 else 0.0
-            line2_char_spacing = (max_width_line2 - line2_width) / len(remainder) if len(remainder) > 0 else 0.0
-
-            # Use unified compression from the worst case
-            unified_char_spacing = min(line1_char_spacing, line2_char_spacing)
-
-            if unified_char_spacing >= min_char_spacing:
-                # Both lines can fit with compression
-                return {
-                    'text': [first_line, remainder],
-                    'char_spacing': [unified_char_spacing, unified_char_spacing],
-                    'truncated': False
-                }
-
-            # Truncate line 2 with min compression
-            truncated_line2 = truncate_text_with_ellipsis(
-                canvas, remainder, max_width_line2, font_family, font_size,
-                min_char_spacing, word_spacing
-            )
-
-            return {
-                'text': [first_line, truncated_line2],
-                'char_spacing': [min_char_spacing, min_char_spacing],
-                'truncated': True
-            }
-
-    # Step 4: Last resort - truncate with min compression
-    truncated_text = truncate_text_with_ellipsis(
-        canvas, text, max_width, font_family, font_size,
-        min_char_spacing, word_spacing
-    )
-
-    return {'text': truncated_text, 'char_spacing': min_char_spacing, 'truncated': True}
-
-
-def fit_text_two_lines(
-    canvas: Canvas, text: str,
-    line1_max_width: float, line2_max_width: float,
-    font_family: str, font_size: float,
-    word_spacing: float = 0.0, min_char_spacing: float = -1.0
-) -> dict:
-    """
-    Fit text across two lines with different max widths.
-
-    Optimized for tracklist use case where line 1 has less space (track number + duration)
-    and line 2 has more space (indent only).
-
-    Args:
-        canvas: ReportLab canvas for measuring text.
-        text: Text to fit.
-        line1_max_width: Maximum width for first line.
-        line2_max_width: Maximum width for second line.
-        font_family: Font family name.
-        font_size: Font size in points.
-        word_spacing: Word spacing in points (default: 0.0).
-        min_char_spacing: Minimum character spacing threshold (default: -1.0).
-
-    Returns:
-        {
-            'line1': str,
-            'line2': str,
-            'line1_char_spacing': float,
-            'line2_char_spacing': float,
-            'truncated': bool
-        }
-    """
-    # Try single line first
-    text_width = calculate_text_width(canvas, text, font_family, font_size, 0.0, word_spacing)
-
-    if text_width <= line1_max_width:
-        return {
-            'line1': text,
-            'line2': '',
-            'line1_char_spacing': 0.0,
-            'line2_char_spacing': 0.0,
-            'truncated': False
-        }
-
-    # Calculate compression needed for single line
-    char_spacing = (line1_max_width - text_width) / len(text) if len(text) > 0 else 0.0
-
-    if char_spacing >= min_char_spacing:
-        # Single line with compression
-        return {
-            'line1': text,
-            'line2': '',
-            'line1_char_spacing': char_spacing,
-            'line2_char_spacing': 0.0,
-            'truncated': False
-        }
-
-    # Wrap to two lines
-    first_line, remainder = wrap_text_to_width(
-        canvas, text, line1_max_width, font_family, font_size, 0.0, word_spacing, mode="two_part"
-    )
-
-    if not remainder:
-        # Entire text fits on line 1 after split
-        return {
-            'line1': first_line,
-            'line2': '',
-            'line1_char_spacing': 0.0,
-            'line2_char_spacing': 0.0,
-            'truncated': False
-        }
-
-    # Calculate widths for both lines
-    line1_width = calculate_text_width(canvas, first_line, font_family, font_size, 0.0, word_spacing)
-    line2_width = calculate_text_width(canvas, remainder, font_family, font_size, 0.0, word_spacing)
-
-    # Check if both lines fit with normal spacing
-    if line1_width <= line1_max_width and line2_width <= line2_max_width:
-        return {
-            'line1': first_line,
-            'line2': remainder,
-            'line1_char_spacing': 0.0,
-            'line2_char_spacing': 0.0,
-            'truncated': False
-        }
-
-    # Calculate compression factors for both lines
-    line1_char_spacing = (line1_max_width - line1_width) / len(first_line) if len(first_line) > 0 else 0.0
-    line2_char_spacing = (line2_max_width - line2_width) / len(remainder) if len(remainder) > 0 else 0.0
-
-    # Use unified compression from the worst case for consistency
-    unified_char_spacing = min(line1_char_spacing, line2_char_spacing)
-
-    if unified_char_spacing >= min_char_spacing:
-        # Both lines can fit with compression
-        return {
-            'line1': first_line,
-            'line2': remainder,
-            'line1_char_spacing': unified_char_spacing,
-            'line2_char_spacing': unified_char_spacing,
-            'truncated': False
-        }
-
-    # Last resort - use min compression and truncate line 2
-    truncated_line2 = truncate_text_with_ellipsis(
-        canvas, remainder, line2_max_width, font_family, font_size,
-        min_char_spacing, word_spacing
-    )
-
-    return {
-        'line1': first_line,
-        'line2': truncated_line2,
-        'line1_char_spacing': min_char_spacing,
-        'line2_char_spacing': min_char_spacing,
-        'truncated': True
-    }
-
-
 # ============================================================================
 # Advanced Text Block Fitting with Arbitrary Line Sizes
 # ============================================================================
@@ -473,6 +71,11 @@ class Line:
         horizontal_scale: Character width scale (1.0 = 100%, 0.8 = 80% condensed).
         fixed_size: If True, point_size is never reduced during fitting iterations (for fixed-height elements).
         track: Reference to the original Track object (if this line represents a track).
+        font_family: Font family name for this line (e.g., "Helvetica", "Helvetica-Bold", "Courier").
+        prefix: Text before main content (track numbers, tree characters, etc.). Defaults to monospace font.
+        suffix: Text after main content (durations, etc.). Defaults to monospace font.
+        prefix_font: Font family for prefix. None means use default monospace from context.
+        suffix_font: Font family for suffix. None means use default monospace from context.
     """
     text: str
     point_size: float = 16.0
@@ -480,6 +83,11 @@ class Line:
     horizontal_scale: float = 1.0
     fixed_size: bool = False
     track: Track | None = None
+    font_family: str = "Helvetica"
+    prefix: str = ""
+    suffix: str = ""
+    prefix_font: str | None = None
+    suffix_font: str | None = None
 
 
 def _measure_line_width(
@@ -594,7 +202,7 @@ def _truncate_at_word_boundary(
 
 
 def _process_lines_at_current_size(
-    canvas: Canvas, lines: List[Line], font_family: str, max_width: float,
+    canvas: Canvas, lines: List[Line], context: RendererContext, max_width: float,
     min_horizontal_scale: float, split_max: int
 ) -> List[Line]:
     """
@@ -604,12 +212,13 @@ def _process_lines_at_current_size(
     1. Calculates needed horizontal_scale for each line independently
     2. Splits lines if compression would be too extreme
     3. For split lines from the same input, uses the worse compression for consistency
+    4. Accounts for prefix/suffix width when calculating effective width for text
 
     Args:
         canvas: ReportLab canvas for measuring text.
-        lines: Input lines with point_size and leading_ratio set.
-        font_family: Font family name.
-        max_width: Maximum width constraint.
+        lines: Input lines with point_size, leading_ratio, and font_family set.
+        context: Rendering context with font configuration.
+        max_width: Maximum width constraint (total available width).
         min_horizontal_scale: Minimum allowed horizontal scale (e.g., 0.7 = 70%).
         split_max: Maximum times a line can be split.
 
@@ -620,9 +229,17 @@ def _process_lines_at_current_size(
 
     # Process each line independently
     for line in lines:
-        base_width = canvas.stringWidth(line.text, font_family, line.point_size)
+        # Calculate effective width for text content (accounting for prefix/suffix)
+        prefix_font = line.prefix_font or context.font_config.monospace_family
+        suffix_font = line.suffix_font or context.font_config.monospace_family
 
-        if base_width <= max_width:
+        prefix_width = canvas.stringWidth(line.prefix, prefix_font, line.point_size) if line.prefix else 0
+        suffix_width = canvas.stringWidth(line.suffix, suffix_font, line.point_size) if line.suffix else 0
+        effective_width = max_width - prefix_width - suffix_width
+
+        base_width = canvas.stringWidth(line.text, line.font_family, line.point_size)
+
+        if base_width <= effective_width:
             # Line fits without compression
             processed_lines.append(Line(
                 text=line.text,
@@ -630,11 +247,16 @@ def _process_lines_at_current_size(
                 leading_ratio=line.leading_ratio,
                 horizontal_scale=1.0,
                 fixed_size=line.fixed_size,
-                track=line.track
+                track=line.track,
+                font_family=line.font_family,
+                prefix=line.prefix,
+                suffix=line.suffix,
+                prefix_font=line.prefix_font,
+                suffix_font=line.suffix_font
             ))
         else:
             # Calculate needed compression
-            needed_scale = max_width / base_width
+            needed_scale = effective_width / base_width
 
             if needed_scale >= min_horizontal_scale:
                 # Compression is acceptable
@@ -644,25 +266,30 @@ def _process_lines_at_current_size(
                     leading_ratio=line.leading_ratio,
                     horizontal_scale=needed_scale,
                     fixed_size=line.fixed_size,
-                    track=line.track
+                    track=line.track,
+                    font_family=line.font_family,
+                    prefix=line.prefix,
+                    suffix=line.suffix,
+                    prefix_font=line.prefix_font,
+                    suffix_font=line.suffix_font
                 ))
             else:
                 # Compression too extreme - try splitting
                 split_lines = _split_line_at_word_boundary(
-                    canvas, line.text, max_width, font_family, line.point_size,
+                    canvas, line.text, effective_width, line.font_family, line.point_size,
                     min_horizontal_scale, split_max
                 )
 
                 # Calculate scale needed for each split line
                 split_parts = []
                 for i, split_text in enumerate(split_lines):
-                    split_width = canvas.stringWidth(split_text, font_family, line.point_size)
-                    split_scale = max_width / split_width if split_width > max_width else 1.0
+                    split_width = canvas.stringWidth(split_text, line.font_family, line.point_size)
+                    split_scale = effective_width / split_width if split_width > effective_width else 1.0
 
                     # If last line and scale still too extreme, truncate
                     if i == len(split_lines) - 1 and split_scale < min_horizontal_scale:
                         split_text = _truncate_at_word_boundary(
-                            canvas, split_text, max_width, font_family, line.point_size,
+                            canvas, split_text, effective_width, line.font_family, line.point_size,
                             min_horizontal_scale
                         )
                         split_scale = min_horizontal_scale
@@ -680,7 +307,12 @@ def _process_lines_at_current_size(
                         leading_ratio=line.leading_ratio,
                         horizontal_scale=unified_scale,
                         fixed_size=line.fixed_size,
-                        track=line.track  # All split parts reference the same track
+                        track=line.track,  # All split parts reference the same track
+                        font_family=line.font_family,
+                        prefix=line.prefix,
+                        suffix=line.suffix,
+                        prefix_font=line.prefix_font,
+                        suffix_font=line.suffix_font
                     ))
 
     return processed_lines
@@ -723,8 +355,8 @@ def fit_text_block(
 
     Args:
         canvas: ReportLab canvas for measuring text.
-        lines: List of Line objects with text, point_size, and leading_ratio.
-        font_family: Font family name to use for all text.
+        lines: List of Line objects with text, point_size, leading_ratio, and font_family.
+        context: Rendering context with font configuration.
         max_width: Maximum width constraint (post-margin).
         max_height: Maximum height constraint (post-margin).
         min_horizontal_scale: Minimum allowed horizontal scale (default: 0.7 = 70%).
@@ -733,24 +365,15 @@ def fit_text_block(
         min_point_size: Minimum point size allowed (default: 6.0).
 
     Returns:
-        List of fitted Line objects with final text, point_size, leading_ratio, and horizontal_scale.
+        List of fitted Line objects with final text, point_size, leading_ratio, font_family, and horizontal_scale.
     """
     # Make copies of input lines to avoid mutating originals
     current_lines = [copy.copy(line) for line in lines]
-    track_size = context.font_config.track_size 
+
     while True:
-        # Estimate widths at 12pt (will scale proportionally)
-        track_num_width = canvas.stringWidth(f"{00:2d}.", context.font_config.monospace_family, track_size)
-        helvetica_space_width = canvas.stringWidth(" ", context.font_config.family, track_size)
-        duration_width = canvas.stringWidth("00:00", context.font_config.monospace_family, track_size)
-        gap_before_duration = 3
-
-        # Available width for track title text (first line - most restrictive)
-        title_width = max_width - track_num_width - helvetica_space_width - duration_width - gap_before_duration
-
         # Process lines at current sizes
         processed_lines = _process_lines_at_current_size(
-            canvas, current_lines, context.font_config.family, title_width,
+            canvas, current_lines, context, max_width,
             min_horizontal_scale, split_max
         )
 
@@ -768,7 +391,12 @@ def fit_text_block(
             return processed_lines
 
         # Reduce font sizes proportionally (skip fixed_size lines)
+        size_changed = False
         for line in current_lines:
             if not line.fixed_size:
                 line.point_size *= size_reduction_ratio
-        track_size *= size_reduction_ratio
+                size_changed = True
+
+        # If all lines are fixed_size, we can't reduce further
+        if not size_changed:
+            return processed_lines

@@ -3,7 +3,7 @@
 from cardgen.api.models import Album
 from cardgen.design.base import Card, CardSection, Theme
 from cardgen.design.sections import CoverSection, MetadataSection, SpineSection, TracklistSection
-from cardgen.design.sections.spine import SpineTextItem
+from cardgen.design.sections.descriptors import DescriptorsSection
 from cardgen.utils.album_art import AlbumArt
 from cardgen.utils.dimensions import (
     JCARD_BACK_WIDTH,
@@ -60,16 +60,46 @@ class JCard4Panel(Card):
         """
         sections: list[CardSection] = []
 
-        # Inside panel - Track listing with sides
+        # Inside panel - Split vertically: 70% tracklist, 30% descriptors
+        inside_panel = self.panels["inside"]
+
+        # Tracklist at top: 70% of height
+        tracklist_height = inside_panel.height * 0.7
+        tracklist_y = inside_panel.y + (inside_panel.height * 0.3)  # Positioned above descriptors
+
         sections.append(
             TracklistSection(
-                name="inside",
-                dimensions=self.panels["inside"],
+                name="inside_tracklist",
+                dimensions=Dimensions(
+                    width=inside_panel.width,
+                    height=tracklist_height,
+                    x=inside_panel.x,
+                    y=tracklist_y
+                ),
                 tracks=self.album.tracks,
                 side_capacity=self.side_capacity,
                 title="Tracklist",
                 track_title_overflow=self.theme.get_track_title_overflow(),
                 min_char_spacing=self.theme.get_min_track_title_char_spacing(),
+            )
+        )
+
+        # Descriptors at bottom: 30% of height
+        descriptors_height = inside_panel.height * 0.3
+        descriptors_y = inside_panel.y  # At bottom of panel
+
+        sections.append(
+            DescriptorsSection(
+                name="inside_descriptors",
+                dimensions=Dimensions(
+                    width=inside_panel.width,
+                    height=descriptors_height,
+                    x=inside_panel.x,
+                    y=descriptors_y
+                ),
+                album=self.album,
+                font_size=10.0,
+                padding_override=0.125,
             )
         )
 
@@ -82,12 +112,12 @@ class JCard4Panel(Card):
             )
         )
 
-        # Spine panel - Artist, Title (bold), Year (vertical text)
-        spine_items: list[SpineTextItem] = []
-        spine_items.append(SpineTextItem(text=self.album.artist))
-        spine_items.append(SpineTextItem(text=self.album.title, bold=True))
+        # Spine panel - Artist, Title, Year (vertical text, all bold)
+        spine_items: list[str] = []
+        spine_items.append(self.album.artist)
+        spine_items.append(self.album.title)
         if self.album.year:
-            spine_items.append(SpineTextItem(text=str(self.album.year)))
+            spine_items.append(str(self.album.year))
 
         sections.append(
             SpineSection(
@@ -95,6 +125,7 @@ class JCard4Panel(Card):
                 dimensions=self.panels["spine"],
                 text_lines=spine_items,
                 album_art=self.album_art,
+                show_dolby_logo=self.album.show_dolby_logo,
             )
         )
 

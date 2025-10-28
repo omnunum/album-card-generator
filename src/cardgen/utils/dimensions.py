@@ -12,6 +12,26 @@ class PageSize:
     label: str     # display label for CLI/help
 
 
+@_dataclass(frozen=True)
+class PointDims:
+    """Dimensions in points (PDF coordinate system: 72 points = 1 inch)."""
+
+    width: float
+    height: float
+    x: float
+    y: float
+
+
+@_dataclass(frozen=True)
+class PixelDims:
+    """Dimensions in pixels (for image generation)."""
+
+    width: int
+    height: int
+    x: int
+    y: int
+
+
 # Registry of standard page sizes
 PAGE_SIZES = {
     "letter": PageSize(8.5, 11.0, "Letter (8.5×11)"),
@@ -40,10 +60,15 @@ JCARD_BACK_WIDTH = 0.667  # Back panel (metadata section) - 2/3 inch
 JCARD_HEIGHT = 4.0
 JCARD_PANEL_WIDTH = 2.5  # Front and inside panels
 
-# 4-panel j-card: Inside | Back | Spine | Front
-# Total width: 2.5" + 0.667" + 0.5" + 2.5" = 6.167"
-JCARD_4_PANEL_WIDTH = JCARD_PANEL_WIDTH + JCARD_BACK_WIDTH + JCARD_SPINE_WIDTH + JCARD_PANEL_WIDTH
+# 4-panel j-card: Back | Spine | Front | Inside
+# Total width: 0.667" + 0.5" + 2.5" + 2.5" = 6.167"
+JCARD_4_PANEL_WIDTH = JCARD_BACK_WIDTH + JCARD_SPINE_WIDTH + JCARD_PANEL_WIDTH + JCARD_PANEL_WIDTH
 JCARD_4_PANEL_HEIGHT = JCARD_HEIGHT
+
+# 5-panel j-card: Back | Spine | Front | Inside | Genre/Descriptors
+# Total width: 0.667" + 0.5" + 2.5" + 2.5" + 2.5" = 8.667"
+JCARD_5_PANEL_WIDTH = JCARD_BACK_WIDTH + JCARD_SPINE_WIDTH + JCARD_PANEL_WIDTH + JCARD_PANEL_WIDTH + JCARD_PANEL_WIDTH
+JCARD_5_PANEL_HEIGHT = JCARD_HEIGHT
 
 # Print specifications
 BLEED = 0.125  # 1/8 inch bleed on all sides
@@ -61,25 +86,46 @@ DPI_MAX = 1200
 
 @_dataclass
 class Dimensions:
-    """Dimensions for a specific element or area."""
+    """
+    Dimensions stored canonically in inches.
+
+    This is the primary dimension type used throughout the codebase.
+    All dimension values are in inches. Use conversion methods to
+    get dimensions in other units.
+    """
 
     width: float  # inches
     height: float  # inches
     x: float = 0.0  # x position (inches)
     y: float = 0.0  # y position (inches)
+    dpi: int = DPI_RECOMMENDED
 
-    def to_points(self) -> tuple[float, float, float, float]:
+    def to_points(self) -> PointDims:
         """
-        Convert dimensions to points (72 points per inch).
+        Convert to points (PDF coordinate system).
 
         Returns:
-            Tuple of (width, height, x, y) in points.
+            Frozen PointDims object (72 points = 1 inch).
         """
-        return (
-            self.width * 72,
-            self.height * 72,
-            self.x * 72,
-            self.y * 72,
+        return PointDims(
+            width=self.width * 72,
+            height=self.height * 72,
+            x=self.x * 72,
+            y=self.y * 72,
+        )
+
+    def to_pixels(self) -> PixelDims:
+        """
+        Convert to pixels using the DPI stored in this Dimensions object.
+
+        Returns:
+            Frozen PixelDims object with integer pixel values.
+        """
+        return PixelDims(
+            width=int(self.width * self.dpi),
+            height=int(self.height * self.dpi),
+            x=int(self.x * self.dpi),
+            y=int(self.y * self.dpi),
         )
 
     def with_bleed(self) -> "Dimensions":

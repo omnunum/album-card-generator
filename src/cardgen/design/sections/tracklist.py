@@ -10,7 +10,7 @@ from cardgen.api.models import Track
 from cardgen.design.base import CardSection, RendererContext
 from cardgen.utils.dimensions import Dimensions
 from cardgen.utils.tape import TapeSide
-from cardgen.utils.text import calculate_text_width, fit_text_two_lines, fit_text_block, Line
+from cardgen.utils.text import fit_text_block, Line
 
 
 @dataclass
@@ -123,8 +123,9 @@ class TracklistSection(CardSection):
             lines.append(Line(
                 text="Side A",
                 point_size=context.font_config.subtitle_size,
-                leading_ratio=(1/16),  # Spacing after header
-                fixed_size=True  # Never reduce this during iterations
+                leading_ratio=(1/4),  # Spacing after header
+                fixed_size=True,  # Never reduce this during iterations
+                font_family=f"{context.font_config.family}-Bold"
             ))
 
             # Side A tracks (normal text that can be reduced)
@@ -133,7 +134,10 @@ class TracklistSection(CardSection):
                     text=track.title,
                     point_size=context.font_config.track_size,
                     leading_ratio=(1/8),  # Spacing between tracks
-                    track=track  # Reference to original track
+                    track=track,  # Reference to original track
+                    font_family=context.font_config.family,
+                    prefix=f"{track.track_number:2d}. ",
+                    suffix=f" {track.format_duration()}"
                 ))
 
         # Side B header (fixed)
@@ -141,8 +145,9 @@ class TracklistSection(CardSection):
             lines.append(Line(
                 text="Side B",
                 point_size=context.font_config.subtitle_size,
-                leading_ratio=(1/16),  # Spacing after header
-                fixed_size=True  # Never reduce this during iterations
+                leading_ratio=(1/4),  # Spacing after header
+                fixed_size=True,  # Never reduce this during iterations
+                font_family=f"{context.font_config.family}-Bold"
             ))
 
             # Side B tracks (normal text that can be reduced)
@@ -151,7 +156,10 @@ class TracklistSection(CardSection):
                     text=track.title,
                     point_size=context.font_config.track_size,
                     leading_ratio=(1/8),  # Spacing between tracks
-                    track=track  # Reference to original track
+                    track=track,  # Reference to original track
+                    font_family=context.font_config.family,
+                    prefix=f"{track.track_number:2d}. ",
+                    suffix=f" {track.format_duration()}"
                 ))
 
         return lines
@@ -233,406 +241,63 @@ class TracklistSection(CardSection):
 
                 text_y -= visible_point_size + (visible_point_size * fitted_line.leading_ratio)
 
-            elif is_first_line_of_track:
-                # Render track (first line)
+            elif is_first_line_of_track or is_continuation_line:
+                # Render track line (first line or continuation)
                 track = fitted_line.track
                 if track is None:
                     continue
-                track_num_text = f"{track.track_number:2d}."
-                duration_text = track.format_duration()
+
+                # Determine prefix and suffix for this line
+                if is_first_line_of_track:
+                    # First line: use track number and duration
+                    prefix = fitted_line.prefix
+                    suffix = fitted_line.suffix
+                    track_numbers_first_line_rendered.add(track.track_number)
+                else:
+                    # Continuation line: use indent, no duration
+                    prefix = "    "
+                    suffix = ""
+
+                # Get fonts
+                prefix_font = fitted_line.prefix_font or context.font_config.monospace_family
+                suffix_font = fitted_line.suffix_font or context.font_config.monospace_family
 
                 # Calculate widths
-                track_num_width = c.stringWidth(track_num_text, context.font_config.monospace_family, fitted_line.point_size)
-                helvetica_space_width = c.stringWidth(" ", context.font_config.family, fitted_line.point_size)
-                duration_width = c.stringWidth(duration_text, context.font_config.monospace_family, fitted_line.point_size)
-                c.setFillColor(Color(*context.color_scheme.text))
-                # Draw track number
-                c.setFont(context.font_config.monospace_family, fitted_line.point_size)
-                c.drawString(context.x + context.padding, text_y, track_num_text)
+                prefix_width = c.stringWidth(prefix, prefix_font, fitted_line.point_size) if prefix else 0
+                suffix_width = c.stringWidth(suffix, suffix_font, fitted_line.point_size) if suffix else 0
 
-                # Draw space
-                c.setFont(context.font_config.family, fitted_line.point_size)
-                c.drawString(context.x + context.padding + track_num_width, text_y, " ")
+                c.setFillColor(Color(*context.color_scheme.text))
+
+                # Draw prefix
+                if prefix:
+                    c.setFont(prefix_font, fitted_line.point_size)
+                    c.drawString(context.x + context.padding, text_y, prefix)
 
                 # Draw track title with horizontal scaling
-                c.saveState()
-
-                # Apply horizontal scaling
-                if fitted_line.horizontal_scale < 1.0:
-                    title_x = context.x + context.padding + track_num_width + helvetica_space_width
-                    c.translate(title_x, text_y)
-                    c.scale(fitted_line.horizontal_scale, 1.0)
-                    c.drawString(0, 0, fitted_line.text)
-                else:
-                    c.drawString(
-                        context.x + context.padding + track_num_width + helvetica_space_width,
-                        text_y,
-                        fitted_line.text
-                    )
-                c.restoreState()
-
-                # Draw duration
-                duration_x = context.x + context.padding + text_width - duration_width
-                c.setFont(context.font_config.monospace_family, fitted_line.point_size)
-                c.drawString(duration_x, text_y, duration_text)
-
-                # Mark this track as having its first line rendered
-                track_numbers_first_line_rendered.add(track.track_number)
-
-                text_y -= fitted_line.point_size + (fitted_line.point_size * fitted_line.leading_ratio)
-
-            elif is_continuation_line:
-                # Render continuation line (indented)
-                indent_width = c.stringWidth("    ", context.font_config.monospace_family, fitted_line.point_size)
-
-                # Draw indent
-                c.setFont(context.font_config.monospace_family, fitted_line.point_size)
-                c.drawString(context.x + context.padding, text_y, "    ")
-
-                # Draw continuation text with horizontal scaling
-                c.saveState()
-                c.setFillColor(Color(*context.color_scheme.text))
                 c.setFont(context.font_config.family, fitted_line.point_size)
-
                 if fitted_line.horizontal_scale < 1.0:
-                    title_x = context.x + context.padding + indent_width
+                    c.saveState()
+                    title_x = context.x + context.padding + prefix_width
                     c.translate(title_x, text_y)
                     c.scale(fitted_line.horizontal_scale, 1.0)
                     c.drawString(0, 0, fitted_line.text)
+                    c.restoreState()
                 else:
                     c.drawString(
-                        context.x + context.padding + indent_width,
+                        context.x + context.padding + prefix_width,
                         text_y,
                         fitted_line.text
                     )
-                c.restoreState()
+
+                # Draw suffix (duration) - right-aligned
+                if suffix:
+                    suffix_x = context.x + context.padding + text_width - suffix_width
+                    c.setFont(suffix_font, fitted_line.point_size)
+                    c.drawString(suffix_x, text_y, suffix)
 
                 text_y -= fitted_line.point_size + (fitted_line.point_size * fitted_line.leading_ratio)
 
         return text_y
-
-    def _render_tape_side(
-        self,
-        context: RendererContext,
-        tape_side: TapeSide,
-        label: str,
-        text_y: float,
-        text_width: float,
-        minimap_x: float,
-        minimap_y: float,
-        minimap_width: float,
-        minimap_height: float,
-        unused_duration_offset: float = 0,
-        track_size: float = 10,
-        line_spacing: float = 3,
-        minimap_gap: float = 4,
-    ) -> float:
-        """
-        Render a single tape side (A or B) with tracks and horizontal minimap.
-
-        Args:
-            context: Rendering context.
-            tape_side: Tape side to render.
-            label: Label to display ("Side A" or "Side B").
-            text_y: Current y position for text.
-            text_width: Available width for track text.
-            minimap_x: Unused (kept for compatibility).
-            minimap_y: Unused (kept for compatibility).
-            minimap_width: Unused (kept for compatibility).
-            minimap_height: Height of minimap bar.
-            unused_duration_offset: Duration offset for Side B tape flip logic.
-            track_size: Font size for tracks.
-            line_spacing: Line spacing between tracks.
-            minimap_gap: Unused (minimap is inline with label).
-
-        Returns:
-            Updated text_y position after rendering.
-        """
-        c = context.canvas
-
-        # Ensure text color is set (fixes white text bug for Side B)
-        c.setFillColor(Color(*context.color_scheme.text))
-
-        # Side header
-        c.setFont(f"{context.font_config.family}-Bold", track_size)
-        c.drawString(context.x + context.padding, text_y, label)
-
-        # Draw horizontal minimap to the right of the side label (on the same line)
-        # Position minimap starting after the label text
-        label_width = c.stringWidth(label, f"{context.font_config.family}-Bold", track_size)
-        minimap_left_margin = 12  # Gap between label and minimap
-        minimap_start_x = context.x + context.padding + label_width + minimap_left_margin
-        minimap_available_width = text_width - label_width - minimap_left_margin
-
-        # Align minimap centerline with label text centerline
-        # Text baseline is at text_y, text height is track_size
-        # Text center is approximately at: text_y + track_size / 2 (accounting for descenders)
-        # For better visual alignment, use text_y + track_size * 0.35 as the centerline
-        text_centerline = text_y + track_size * 0.35
-        # Minimap center should align with text center
-        # minimap_top_y - minimap_height/2 = text_centerline
-        minimap_top_y = text_centerline + minimap_height / 2
-
-        self._draw_minimap(
-            context,
-            tape_side,
-            minimap_start_x,
-            minimap_top_y,
-            minimap_available_width,
-            minimap_height,
-            unused_duration_offset,
-        )
-
-        text_y -= track_size + line_spacing
-
-        # Move down after the side header (no extra space needed for minimap since it's inline)
-        # text_y is already positioned for next line
-
-        # Ensure text color is reset after minimap drawing
-        c.setFillColor(Color(*context.color_scheme.text))
-
-        # Side tracks
-        # Compress word spacing by 40% to fit more text
-        word_spacing = -0.4 * (c.stringWidth(" ", context.font_config.family, track_size))
-
-        for track in tape_side.tracks:
-            # Format track number as right-aligned (e.g., ' 9' or '10')
-            # Split into number+period (monospace) and space (Helvetica for narrower spacing)
-            track_num_text = f"{track.track_number:2d}."
-            track_title_text = track.title
-            duration_text = track.format_duration()
-
-            # Calculate duration width (using monospace font)
-            duration_width = c.stringWidth(
-                duration_text,
-                context.font_config.monospace_family,
-                track_size,
-            )
-            # No word spacing needed for duration (monospace, no spaces)
-            duration_x = context.x + context.padding + text_width - duration_width
-
-            # Calculate available width for track text (leave gap before duration)
-            gap_before_duration = 3  # points - small gap between title and duration
-            available_track_width = duration_x - (context.x + context.padding) - gap_before_duration
-
-            # Calculate widths for track number (monospace) + Helvetica space
-            track_num_width = c.stringWidth(track_num_text, context.font_config.monospace_family, track_size)
-            helvetica_space_width = c.stringWidth(" ", context.font_config.family, track_size)
-            total_track_num_width = track_num_width + helvetica_space_width
-
-            # Calculate available widths for line 1 and line 2
-            line1_available_width = available_track_width - total_track_num_width
-            # Line 2: 4 monospace spaces (indent) to right padding
-            indent_width = c.stringWidth("    ", context.font_config.monospace_family, track_size)
-            line2_available_width = text_width - indent_width
-
-            # Use adaptive fitting algorithm
-            fit_result = fit_text_two_lines(
-                c, track_title_text,
-                line1_available_width, line2_available_width,
-                context.font_config.family, track_size, word_spacing, self.min_char_spacing
-            )
-            line1_text = fit_result['line1']
-            line2_text = fit_result['line2']
-            char_spacing = fit_result['line1_char_spacing']
-            line2_char_spacing = fit_result['line2_char_spacing']
-
-            # Draw track number in monospace (without space)
-            c.setFont(context.font_config.monospace_family, track_size)
-            c.drawString(context.x + context.padding, text_y, track_num_text)
-
-            # Draw Helvetica space after track number
-            c.setFont(context.font_config.family, track_size)
-            c.drawString(context.x + context.padding + track_num_width, text_y, " ")
-
-            # Draw first line with character spacing (after the Helvetica space)
-            c.drawString(
-                context.x + context.padding + total_track_num_width, text_y, line1_text,
-                wordSpace=word_spacing, charSpace=char_spacing
-            )
-
-            # Draw duration in monospace font (only on first line)
-            c.setFont(context.font_config.monospace_family, track_size)
-            c.drawString(duration_x, text_y, duration_text)
-
-            # Draw second line if it exists
-            if line2_text:
-                text_y -= track_size + line_spacing
-
-                # Draw 4 monospace spaces for indent
-                monospace_indent = "    "
-                c.setFont(context.font_config.monospace_family, track_size)
-                c.drawString(context.x + context.padding, text_y, monospace_indent)
-
-                # Draw line 2 text after the monospace indent
-                c.setFont(context.font_config.family, track_size)
-                c.drawString(
-                    context.x + context.padding + indent_width, text_y, line2_text,
-                    wordSpace=word_spacing, charSpace=line2_char_spacing
-                )
-
-            text_y -= track_size + line_spacing
-
-        return text_y
-
-    def _calculate_required_height(
-        self, context: RendererContext, font_size: float, line_spacing: float
-    ) -> float:
-        """
-        Calculate the total height required to render all tracks at a given font size.
-
-        This simulates the rendering process to determine how many lines each track
-        will actually use (accounting for wrapping).
-
-        Args:
-            context: Rendering context.
-            font_size: Font size to test.
-            line_spacing: Line spacing to use.
-
-        Returns:
-            Total height in points required for all tracks.
-        """
-        c = context.canvas
-        text_width = context.width - (context.padding * 2)
-        word_spacing = -0.4 * (c.stringWidth(" ", context.font_config.family, font_size))
-
-        total_height = 0.0
-
-        # Add Side A header
-        if self.side_a and self.side_a.tracks:
-            total_height += font_size + line_spacing  # Side A header
-
-            # Check each track
-            for track in self.side_a.tracks:
-                # Calculate available widths (same as in _render_tape_side)
-                track_num_text = f"{track.track_number:2d}."
-                duration_text = track.format_duration()
-
-                track_num_width = c.stringWidth(track_num_text, context.font_config.monospace_family, font_size)
-                helvetica_space_width = c.stringWidth(" ", context.font_config.family, font_size)
-                total_track_num_width = track_num_width + helvetica_space_width
-
-                duration_width = c.stringWidth(duration_text, context.font_config.monospace_family, font_size)
-                gap_before_duration = 3
-                available_track_width = text_width - duration_width - gap_before_duration
-
-                line1_available_width = available_track_width - total_track_num_width
-                indent_width = c.stringWidth("    ", context.font_config.monospace_family, font_size)
-                line2_available_width = text_width - indent_width
-
-                # Use fit_text_two_lines to check if it wraps
-                fit_result = fit_text_two_lines(
-                    c, track.title,
-                    line1_available_width, line2_available_width,
-                    context.font_config.family, font_size, word_spacing, self.min_char_spacing
-                )
-
-                # Count lines used by this track
-                if fit_result['line2']:
-                    # Wrapped to 2 lines
-                    total_height += (font_size + line_spacing) * 2
-                else:
-                    # Single line
-                    total_height += font_size + line_spacing
-
-        # Add gap between sides
-        if self.side_a and self.side_a.tracks and self.side_b and self.side_b.tracks:
-            total_height += line_spacing
-
-        # Add Side B header and tracks
-        if self.side_b and self.side_b.tracks:
-            total_height += font_size + line_spacing  # Side B header
-
-            for track in self.side_b.tracks:
-                # Same calculation as Side A
-                track_num_text = f"{track.track_number:2d}."
-                duration_text = track.format_duration()
-
-                track_num_width = c.stringWidth(track_num_text, context.font_config.monospace_family, font_size)
-                helvetica_space_width = c.stringWidth(" ", context.font_config.family, font_size)
-                total_track_num_width = track_num_width + helvetica_space_width
-
-                duration_width = c.stringWidth(duration_text, context.font_config.monospace_family, font_size)
-                gap_before_duration = 3
-                available_track_width = text_width - duration_width - gap_before_duration
-
-                line1_available_width = available_track_width - total_track_num_width
-                indent_width = c.stringWidth("    ", context.font_config.monospace_family, font_size)
-                line2_available_width = text_width - indent_width
-
-                fit_result = fit_text_two_lines(
-                    c, track.title,
-                    line1_available_width, line2_available_width,
-                    context.font_config.family, font_size, word_spacing, self.min_char_spacing
-                )
-
-                if fit_result['line2']:
-                    total_height += (font_size + line_spacing) * 2
-                else:
-                    total_height += font_size + line_spacing
-
-        return total_height
-
-    def _calculate_optimal_line_size(
-        self, available_height: float, total_lines: int
-    ) -> tuple[float, float]:
-        """
-        Calculate optimal font size and line spacing to fill available vertical space.
-
-        Args:
-            available_height: Available vertical space.
-            total_lines: Total number of lines (tracks + headers).
-
-        Returns:
-            Tuple of (font_size, line_spacing).
-        """
-        min_size = 6
-        max_size = 12
-
-        # Try each font size from largest to smallest
-        for size in range(int(max_size), int(min_size) - 1, -1):
-            # Calculate spacing needed to fill the space
-            # available = total_lines * (size + spacing)
-            spacing = (available_height / total_lines) - size
-
-            # Spacing should be reasonable (at least 2pt, at most 10pt)
-            if spacing >= 2 and spacing <= 10:
-                return (float(size), spacing)
-
-        # Fallback: use minimum size with whatever spacing fits
-        spacing = max(2.0, (available_height / total_lines) - min_size)
-        return (float(min_size), spacing)
-
-    def _calculate_track_font_size(
-        self, available_height: float, total_tracks: int, num_headers: int, overhead: float
-    ) -> float:
-        """
-        Calculate optimal track font size to fit all tracks in available space.
-
-        Args:
-            available_height: Available vertical space for tracks.
-            total_tracks: Total number of tracks across both sides.
-            num_headers: Number of side headers (1 or 2).
-            overhead: Fixed overhead from spacing and headers.
-
-        Returns:
-            Optimal font size in points.
-        """
-        min_size = 6
-        max_size = 12
-
-        # Formula: height = tracks*(size+3) + headers*(size+4) + gap_between_sides
-        # Each track uses: size + 3pt spacing
-        # Each header uses: size + 4pt spacing
-        for size in range(int(max_size), int(min_size) - 1, -1):
-            track_space = total_tracks * (size + 3)
-            header_space = num_headers * (size + 4)
-            required_height = track_space + header_space + overhead
-
-            if required_height <= available_height:
-                return float(size)
-
-        return float(min_size)
 
     def _build_minimap_segments(
         self, tape_side: TapeSide, unused_duration_offset: float = 0

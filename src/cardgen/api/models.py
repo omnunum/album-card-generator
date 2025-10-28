@@ -40,6 +40,7 @@ class Album:
     tracks: list[Track]
     composer: str | None = None
     rym_descriptors: list[str] | None = None  # RateYourMusic descriptors from custom tags
+    show_dolby_logo: bool = False  # Whether to show Dolby NR logo on spine
 
     def total_duration(self) -> int:
         """

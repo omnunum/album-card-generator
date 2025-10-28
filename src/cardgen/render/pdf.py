@@ -8,9 +8,9 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import inch
 from reportlab.pdfgen import canvas
 
-from cardgen.design.base import Card, RendererContext
+from cardgen.design.base import Card, RendererContext, Theme, CardSection
 from cardgen.utils.album_art import AlbumArt
-from cardgen.utils.dimensions import center_on_page, get_page_size, inches_to_points
+from cardgen.utils.dimensions import center_on_page, get_page_size, inches_to_points, Dimensions, PixelDims, PointDims
 
 
 class PDFRenderer:
@@ -103,6 +103,21 @@ class PDFRenderer:
                 if self.include_crop_marks:
                     self._draw_guides(c, card_dims, offset_x, offset_y, card.get_fold_lines())
 
+                # Draw gradient background if enabled
+                color_scheme = card.theme.get_color_scheme()
+                if color_scheme.gradient_enabled and color_scheme.gradient_start and color_scheme.gradient_end:
+                    # Need to offset card_dims for proper positioning on page
+                    gradient_dims = Dimensions(
+                        width=card_dims.width,
+                        height=card_dims.height,
+                        x=offset_x,
+                        y=offset_y,
+                        dpi=self.dpi
+                    )
+                    self._draw_gradient_background(
+                        c, gradient_dims, color_scheme.gradient_start, color_scheme.gradient_end
+                    )
+
                 # Draw each section
                 sections = card.get_sections()
                 for section in sections:
@@ -123,10 +138,10 @@ class PDFRenderer:
     def _render_section(
         self,
         c: canvas.Canvas,
-        section,  # CardSection subclass
+        section: CardSection,  # CardSection subclass
         offset_x: float,
         offset_y: float,
-        theme,
+        theme: Theme,
     ) -> None:
         """
         Render a single card section using polymorphism.
@@ -138,31 +153,28 @@ class PDFRenderer:
             offset_y: Y offset for card position on page (inches).
             theme: Theme for styling.
         """
-        dims = section.dimensions
-        x = inches_to_points(offset_x + dims.x)
-        y = inches_to_points(offset_y + dims.y)
-        width = inches_to_points(dims.width)
-        height = inches_to_points(dims.height)
+        # Create positioned section dimensions
+        positioned_dims = Dimensions(
+            width=section.dimensions.width,
+            height=section.dimensions.height,
+            x=offset_x + section.dimensions.x,
+            y=offset_y + section.dimensions.y,
+            dpi=self.dpi
+        )
+        point_dims = positioned_dims.to_points()
 
         # Create rendering context
         context = RendererContext(
             canvas=c,
-            x=x,
-            y=y,
-            width=width,
-            height=height,
+            x=point_dims.x,
+            y=point_dims.y,
+            width=point_dims.width,
+            height=point_dims.height,
             font_config=theme.get_font_config(),
             color_scheme=theme.get_color_scheme(),
             padding=inches_to_points(theme.get_padding()),
             dpi=self.dpi,
         )
-
-        # Draw gradient background if enabled
-        color_scheme = theme.get_color_scheme()
-        if color_scheme.gradient_enabled and color_scheme.gradient_start and color_scheme.gradient_end:
-            self._draw_gradient_background(
-                c, x, y, width, height, color_scheme.gradient_start, color_scheme.gradient_end
-            )
 
         # Polymorphic call - each section renders itself
         section.render(context)
@@ -170,10 +182,7 @@ class PDFRenderer:
     def _draw_gradient_background(
         self,
         c: canvas.Canvas,
-        x: float,
-        y: float,
-        width: float,
-        height: float,
+        dims: Dimensions,
         start_color: tuple[float, float, float],
         end_color: tuple[float, float, float],
     ) -> None:
@@ -182,17 +191,14 @@ class PDFRenderer:
 
         Args:
             c: ReportLab canvas.
-            x: X position in points.
-            y: Y position in points.
-            width: Width in points.
-            height: Height in points.
+            dims: Dimensions in inches (will be converted to pixels/points).
             start_color: RGB tuple (0-1) for top of gradient.
             end_color: RGB tuple (0-1) for bottom of gradient.
         """
-        # Create gradient image using PIL for smooth gradients
-        # Use modest resolution (height in pixels)
-        img_height = int(height)
-        img_width = int(width)
+        # Get pixel dimensions for image generation
+        pixel_dims = dims.to_pixels()
+        img_width = pixel_dims.width
+        img_height = pixel_dims.height
 
         # Create new image
         img = PILImage.new('RGB', (img_width, img_height))
@@ -227,8 +233,15 @@ class PDFRenderer:
         # Convert PIL image to ImageReader
         img_reader = AlbumArt.pil_to_image_reader(img)
 
-        # Draw image
-        c.drawImage(img_reader, x, y, width=width, height=height, preserveAspectRatio=False)
+        # Get point dimensions for PDF drawing
+        point_dims = dims.to_points()
+        c.drawImage(
+            img_reader,
+            point_dims.x, point_dims.y,
+            width=point_dims.width,
+            height=point_dims.height,
+            preserveAspectRatio=False
+        )
 
     def _draw_color_palette(
         self,
@@ -241,15 +254,18 @@ class PDFRenderer:
         """Draw color palette legend outside the card area."""
         from reportlab.lib.colors import Color, black
 
-        # Convert to points
-        card_width = inches_to_points(card_dims.width)
-        card_height = inches_to_points(card_dims.height)
-        x_offset = inches_to_points(offset_x)
-        y_offset = inches_to_points(offset_y)
+        # Create positioned card dimensions
+        positioned_card = Dimensions(
+            width=card_dims.width,
+            height=card_dims.height,
+            x=offset_x,
+            y=offset_y
+        )
+        point_dims = positioned_card.to_points()
 
         # Position palette to the right of the card
-        palette_x = x_offset + card_width + 18  # 18pts gap from card
-        palette_y_start = y_offset + card_height - 24  # Start slightly lower
+        palette_x = point_dims.x + point_dims.width + 18  # 18pts gap from card
+        palette_y_start = point_dims.y + point_dims.height - 24  # Start slightly lower
 
         square_size = 24  # 24pts square
         gap = 4  # 4pts gap between squares
@@ -289,24 +305,27 @@ class PDFRenderer:
         c.setLineWidth(0.25)
         c.setDash(1, 2)
 
-        # Convert to points
-        card_width = inches_to_points(card_dims.width)
-        card_height = inches_to_points(card_dims.height)
-        x_offset = inches_to_points(offset_x)
-        y_offset = inches_to_points(offset_y)
+        # Create positioned card dimensions
+        positioned_card = Dimensions(
+            width=card_dims.width,
+            height=card_dims.height,
+            x=offset_x,
+            y=offset_y
+        )
+        point_dims = positioned_card.to_points()
 
         # Draw fold lines
         for fold_x in fold_lines:
-            fold_x_pts = inches_to_points(fold_x) + x_offset
-            c.line(fold_x_pts, y_offset, fold_x_pts, y_offset + card_height)
+            fold_x_pts = inches_to_points(fold_x) + point_dims.x
+            c.line(fold_x_pts, point_dims.y, fold_x_pts, point_dims.y + point_dims.height)
 
         # Draw corner crop marks
         mark_length = 18  # points
         corners = [
-            (x_offset, y_offset),  # Bottom-left
-            (x_offset + card_width, y_offset),  # Bottom-right
-            (x_offset, y_offset + card_height),  # Top-left
-            (x_offset + card_width, y_offset + card_height),  # Top-right
+            (point_dims.x, point_dims.y),  # Bottom-left
+            (point_dims.x + point_dims.width, point_dims.y),  # Bottom-right
+            (point_dims.x, point_dims.y + point_dims.height),  # Top-left
+            (point_dims.x + point_dims.width, point_dims.y + point_dims.height),  # Top-right
         ]
 
         c.setDash()  # Solid lines for crop marks

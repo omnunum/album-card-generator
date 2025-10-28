@@ -1,6 +1,10 @@
 """Cover section implementation."""
 
+import os
+
+from reportlab.graphics import renderPDF
 from reportlab.lib.colors import Color
+from svglib.svglib import svg2rlg
 
 from cardgen.design.base import CardSection, RendererContext
 from cardgen.utils.album_art import AlbumArt
@@ -18,6 +22,7 @@ class CoverSection(CardSection):
         album_art: AlbumArt | None,
         title: str,
         artist: str,
+        show_dolby_logo: bool = False,
     ) -> None:
         """
         Initialize cover section.
@@ -28,11 +33,13 @@ class CoverSection(CardSection):
             album_art: AlbumArt object for image processing.
             title: Album title.
             artist: Artist name.
+            show_dolby_logo: Whether to show the Dolby NR logo on the cover.
         """
         super().__init__(name, dimensions)
         self.album_art = album_art
         self.title = title
         self.artist = artist
+        self.show_dolby_logo = show_dolby_logo
 
     def _build_text_lines(self, context: RendererContext) -> list[Line]:
         """
@@ -195,3 +202,32 @@ class CoverSection(CardSection):
         # Render fitted lines centered
         start_y = art_y - context.padding - fitted_lines[0].point_size
         self._render_fitted_lines_centered(context, fitted_lines, start_y, available_text_width)
+
+        # Render Dolby logo if requested
+        if self.show_dolby_logo:
+            # Load the white Dolby logo SVG
+            assets_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'assets')
+            logo_path = os.path.join(assets_dir, 'dolby-b-full-white.svg')
+
+            if os.path.exists(logo_path):
+                drawing = svg2rlg(logo_path)
+
+                if drawing:
+                    # Calculate logo dimensions (1/3 of panel width, maintaining aspect ratio)
+                    logo_padding = inches_to_points(1/16)
+                    logo_width = context.width / 3
+                    aspect_ratio = drawing.width / drawing.height
+                    logo_height = logo_width / aspect_ratio
+
+                    # Scale the drawing
+                    scale_factor = logo_width / drawing.width
+                    drawing.width = logo_width
+                    drawing.height = logo_height
+                    drawing.scale(scale_factor, scale_factor)
+
+                    # Position logo at bottom left with padding
+                    logo_x = context.x + logo_padding
+                    logo_y = context.y + logo_padding
+
+                    # Render the logo
+                    renderPDF.draw(drawing, c, logo_x, logo_y)

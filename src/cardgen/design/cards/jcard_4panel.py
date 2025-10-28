@@ -109,6 +109,7 @@ class JCard4Panel(Card):
                 dimensions=self.panels["back"],
                 album=self.album,
                 font_size=9.0,  # Increased from 5.0, fits better than 10.0
+                padding_override=1/16
             )
         )
 
@@ -137,6 +138,7 @@ class JCard4Panel(Card):
                 album_art=self.album_art,
                 title=self.album.title,
                 artist=self.album.artist,
+                show_dolby_logo=self.album.show_dolby_logo,
             )
         )
 

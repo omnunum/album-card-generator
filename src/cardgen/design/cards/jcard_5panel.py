@@ -79,6 +79,7 @@ class JCard5Panel(Card):
                 ),
                 album=self.album,
                 font_size=9.0,
+                padding_override=1/16
             )
         )
 
@@ -117,6 +118,7 @@ class JCard5Panel(Card):
                 album_art=self.album_art,
                 title=self.album.title,
                 artist=self.album.artist,
+                show_dolby_logo=self.album.show_dolby_logo,
             )
         )
 

@@ -67,19 +67,19 @@ class CoverSection(CardSection):
             else context.theme.font_family
         )
 
-        # Title line (bold) - start large to maximize text size
+        # Title line (bold) - start at theme max font size to maximize text size
         lines.append(Line(
             text=self.title,
-            point_size=40,  # Start large, will auto-reduce to fit
+            point_size=context.theme.title_font_size,  # Max font size from theme, will auto-reduce to fit
             leading_ratio=0.2,  # Spacing after title
             fixed_size=False,
             font_family=title_font
         ))
 
-        # Artist line (regular) - start large to maximize text size
+        # Artist line (regular) - start at theme max font size to maximize text size
         lines.append(Line(
             text=self.artist,
-            point_size=30,  # Start large, will auto-reduce to fit
+            point_size=context.theme.artist_font_size,  # Max font size from theme, will auto-reduce to fit
             leading_ratio=0.2,  # No spacing after (last line)
             fixed_size=False,
             font_family=artist_font
@@ -106,7 +106,7 @@ class CoverSection(CardSection):
         c = context.canvas
         text_y = start_y
 
-        for fitted_line in fitted_lines:
+        for i, fitted_line in enumerate(fitted_lines):
             c.setFont(fitted_line.font_family, fitted_line.point_size)
             c.setFillColor(Color(*context.theme.effective_text_color))
 
@@ -116,7 +116,8 @@ class CoverSection(CardSection):
 
             # Center the text
             center_x = context.x + context.width / 2
-
+            if i > 0:
+                text_y -= fitted_line.point_size
             # Draw text with horizontal scaling if needed
             if fitted_line.horizontal_scale < 1.0:
                 c.saveState()
@@ -128,7 +129,7 @@ class CoverSection(CardSection):
                 c.drawCentredString(center_x, text_y, fitted_line.text)
 
             # Move down for next line
-            text_y -= fitted_line.point_size + (fitted_line.point_size * fitted_line.leading_ratio)
+            text_y -= fitted_line.point_size * fitted_line.leading_ratio
 
     def render(self, context: RendererContext) -> None:
         """Render front cover with album art using fit_text_block."""

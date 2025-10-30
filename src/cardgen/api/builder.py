@@ -8,7 +8,7 @@ from cardgen.api.models import Album
 from cardgen.api.navidrome import NavidromeClient
 from cardgen.config import Config, Theme
 from cardgen.design import Card
-from cardgen.fonts import register_google_font
+from cardgen.fonts import register_fonts, register_google_font
 from cardgen.render import PDFRenderer
 from cardgen.utils.album_art import AlbumArt
 
@@ -88,68 +88,8 @@ def create_card(
     # Create AlbumArt object
     album_art_obj = AlbumArt(album_data.cover_art)
 
-    # Process theme: Register Google Fonts and update resolved font names
-    theme_updates = {}
-
-    if theme.title_google_font:
-        logger.info(f"Registering Google Font: {theme.title_google_font} (weight {theme.title_font_weight})")
-        font_name = register_google_font(theme.title_google_font, theme.title_font_weight)
-        if font_name:
-            theme_updates["title_font"] = font_name
-            logger.info(f"Registered title font: {font_name}")
-        else:
-            # Fallback to default bold font
-            theme_updates["title_font"] = f"{theme.font_family}-Bold"
-            logger.warning(f"Failed to register {theme.title_google_font}, using {theme.font_family}-Bold")
-
-    if theme.artist_google_font:
-        logger.info(f"Registering Google Font: {theme.artist_google_font} (weight {theme.artist_font_weight})")
-        font_name = register_google_font(theme.artist_google_font, theme.artist_font_weight)
-        if font_name:
-            theme_updates["artist_font"] = font_name
-            logger.info(f"Registered artist font: {font_name}")
-        else:
-            # Fallback to default font
-            theme_updates["artist_font"] = theme.font_family
-            logger.warning(f"Failed to register {theme.artist_google_font}, using {theme.font_family}")
-
-    # Process theme: Extract gradient colors if enabled
-    if theme.use_gradient:
-        logger.info("Extracting color palette from album art...")
-        extracted_palette = album_art_obj.get_color_palette(max_colors=3)
-
-        # Select gradient colors based on indices
-        gradient_indices = theme.gradient_indices
-        try:
-            theme_updates["gradient_start"] = extracted_palette[gradient_indices[0]]
-            theme_updates["gradient_end"] = extracted_palette[gradient_indices[1]]
-            theme_updates["color_palette"] = extracted_palette
-            logger.info(
-                f"Extracted gradient using colors at indices {gradient_indices[0]} and {gradient_indices[1]}"
-            )
-        except IndexError:
-            logger.warning(
-                f"Invalid gradient color indices {gradient_indices}, "
-                f"palette only has {len(extracted_palette)} colors. Using first two colors."
-            )
-            theme_updates["gradient_start"] = extracted_palette[0]
-            theme_updates["gradient_end"] = extracted_palette[1]
-            theme_updates["color_palette"] = extracted_palette
-
-    # Apply theme updates (if any)
-    if theme_updates:
-        theme = theme.model_copy(update=theme_updates)
-
-    # Apply dolby logo setting to album
-    if theme.dolby_logo:
-        album_data.show_dolby_logo = True
-
-    # Instantiate card with processed theme
-    card = card_class(album_data, theme, album_art_obj, tape_length_minutes=theme.tape_length)
-
-    logger.info(f"Created {card_class.__name__} for '{album_data.title}'")
-
-    return card
+    # Delegate to create_card_from_album for the rest
+    return create_card_from_album(album_data, album_art_obj, card_class, theme)
 
 
 def create_card_from_album(
@@ -207,7 +147,7 @@ def create_card_from_album(
 
     # Process theme: Register Google Fonts
     theme_updates = {}
-
+    register_fonts()
     if theme.title_google_font:
         logger.info(f"Registering Google Font: {theme.title_google_font} (weight {theme.title_font_weight})")
         font_name = register_google_font(theme.title_google_font, theme.title_font_weight)

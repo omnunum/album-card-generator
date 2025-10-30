@@ -130,16 +130,17 @@ You can programmatically create cards with custom styling using the Python API. 
 ### Quick Start
 
 ```python
-from cardgen import CardConfig, create_card_from_url, load_config, render_cards_to_pdf
+from cardgen import Theme, create_card, load_config, render_cards_to_pdf, NavidromeClient, JCard4Panel, AlbumArt
 
 # Load config (for Navidrome credentials)
 config = load_config()
 
 # Create a card with custom styling
-card = create_card_from_url(
+card = create_card(
     "album/abc123",
     config,
-    CardConfig(
+    JCard4Panel,
+    Theme(
         title_google_font="Orbitron",
         title_font_weight=900,
         use_gradient=True,
@@ -153,10 +154,7 @@ render_cards_to_pdf([card], "my_card.pdf")
 ### Multiple Cards with Different Styling
 
 ```python
-from cardgen import Theme, create_card_from_album, render_cards_to_pdf, load_config
-from cardgen.api import NavidromeClient
-from cardgen.design import JCard4Panel, JCard5Panel
-from cardgen.utils.album_art import AlbumArt
+from cardgen import Theme, create_card_from_album, render_cards_to_pdf, load_config, NavidromeClient, JCard4Panel, JCard5Panel, AlbumArt
 
 config = load_config()
 client = NavidromeClient(config.navidrome)
@@ -247,12 +245,22 @@ See the `examples/` directory for complete working examples:
 
 ### API Reference
 
-**`create_card_from_url(url, base_config, card_config=None)`**
+**`create_card(url, config, card_class, theme=None)`**
 - Create card from Navidrome album URL
+- Arguments:
+  - `url`: Album URL (e.g., "album/abc123")
+  - `config`: Config object with Navidrome credentials
+  - `card_class`: Card class (JCard4Panel or JCard5Panel)
+  - `theme`: Theme object for styling
 - Returns: `Card` object
 
-**`create_card_from_album(album, album_art, card_config=None)`**
+**`create_card_from_album(album, album_art, card_class, theme=None)`**
 - Create card from manually constructed Album object
+- Arguments:
+  - `album`: Album object with metadata
+  - `album_art`: AlbumArt object for cover image
+  - `card_class`: Card class (JCard4Panel or JCard5Panel)
+  - `theme`: Theme object for styling
 - Returns: `Card` object
 
 **`render_cards_to_pdf(cards, output_path, dpi=600, include_crop_marks=True, page_size="letter")`**

@@ -12,10 +12,6 @@ logger = logging.getLogger(__name__)
 # Cache directory for downloaded Google Fonts
 CACHE_DIR = Path.home() / ".cache" / "album-card-generator" / "fonts"
 
-# User-Agent that requests TrueType fonts instead of WOFF2
-# Using an older browser UA to get TTF format
-USER_AGENT = "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:27.0) Gecko/20100101 Firefox/27.0"
-
 
 def get_google_font(family: str, weight: int = 400) -> Optional[Path]:
     """
@@ -40,19 +36,15 @@ def get_google_font(family: str, weight: int = 400) -> Optional[Path]:
         logger.info(f"Using cached Google Font: {cache_filename}")
         return cache_path
 
-    # Construct Google Fonts CSS API URL
-    # Format: https://fonts.googleapis.com/css2?family=Orbitron:wght@700
-    font_url = f"https://fonts.googleapis.com/css2?family={family.replace(' ', '+')}:wght@{weight}"
+    # Construct Google Fonts CSS API v1 URL
+    # Format: https://fonts.googleapis.com/css?family=Orbitron:400&display=swap
+    font_url = f"https://fonts.googleapis.com/css?family={family.replace(' ', '+')}:{weight}&display=swap"
 
     try:
         logger.info(f"Downloading Google Font: {family} (weight {weight})")
 
-        # Fetch CSS with User-Agent that requests TTF
-        css_response = requests.get(
-            font_url,
-            headers={"User-Agent": USER_AGENT},
-            timeout=10
-        )
+        # Fetch CSS - v1 API typically returns TTF URLs
+        css_response = requests.get(font_url, timeout=10)
         css_response.raise_for_status()
 
         # Parse CSS to extract font file URL
@@ -92,14 +84,14 @@ def _extract_font_url_from_css(css_content: str) -> Optional[str]:
         URL to the font file (TTF), or None if not found.
     """
     # Look for url() in src property
-    # Example: src: url(https://fonts.gstatic.com/s/orbitron/v31/yMJMMIlzdpvBhQQL_SC3X9yhF25-T1nyGy6BoWgz.ttf) format('truetype');
+    # Google Fonts CSS v1 typically provides TTF URLs with format('truetype')
     url_pattern = r'src:\s*url\((https://[^)]+\.ttf)\)'
 
     match = re.search(url_pattern, css_content)
     if match:
         return match.group(1)
 
-    # Fallback: try to find any .ttf URL
+    # Fallback: try to find any TTF URL
     ttf_pattern = r'(https://[^\s\'"]+\.ttf)'
     match = re.search(ttf_pattern, css_content)
     if match:

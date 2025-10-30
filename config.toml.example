@@ -39,6 +39,16 @@ font_family = "Helvetica"
 # Falls back to "Courier" if Iosevka fonts not found
 monospace_font_family = "Iosevka"
 
+# Google Fonts for album title and artist (optional)
+# Fonts are automatically downloaded and cached on first use
+# Browse fonts at: https://fonts.google.com
+# Common weights: 100 (Thin), 200 (Extra Light), 300 (Light), 400 (Regular),
+#                 500 (Medium), 600 (Semi Bold), 700 (Bold), 800 (Extra Bold), 900 (Black)
+# title_google_font = "Orbitron"
+# title_font_weight = 900
+# artist_google_font = "Roboto"
+# artist_font_weight = 400
+
 title_font_size = 14
 artist_font_size = 12
 track_font_size = 10

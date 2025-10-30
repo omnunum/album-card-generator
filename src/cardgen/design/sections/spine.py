@@ -58,7 +58,7 @@ class SpineSection(CardSection):
             point_size=30,  # Start large to fill spine width, fit_text_block will reduce if needed
             leading_ratio=0.0,  # No line spacing for single line
             fixed_size=False,  # Allow size reduction
-            font_family=f"{context.font_config.family}-Bold"  # All bold
+            font_family=f"{context.theme.font_family}-Bold"  # All bold
         )]
 
     def _render_fitted_lines(
@@ -91,7 +91,7 @@ class SpineSection(CardSection):
         if fitted_lines:
             fitted_line = fitted_lines[0]
             c.setFont(fitted_line.font_family, fitted_line.point_size)
-            c.setFillColor(Color(*context.color_scheme.text))
+            c.setFillColor(Color(*context.theme.effective_text_color))
 
             # Calculate text width with scaling
             base_width = c.stringWidth(fitted_line.text, fitted_line.font_family, fitted_line.point_size)

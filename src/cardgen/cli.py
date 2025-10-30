@@ -5,11 +5,10 @@ from pathlib import Path
 import click
 
 from cardgen.api import NavidromeClient
-from cardgen.config import format_output_name, load_config
+from cardgen.api.builder import create_card_from_album, render_cards_to_pdf
+from cardgen.config import Theme, format_output_name, load_config
 from cardgen.design import JCard4Panel, JCard5Panel
-from cardgen.design.themes import DefaultTheme
 from cardgen.fonts import register_fonts
-from cardgen.render import PDFRenderer
 from cardgen.utils.album_art import AlbumArt
 from cardgen.utils.dimensions import PAGE_SIZES
 
@@ -147,10 +146,13 @@ def album(
 
         # Determine output path
         if output is None:
-            template = cfg.output.templates.model_dump().get(output_name)
-            if template is None:
-                click.echo(f"Error: Unknown output template '{output_name}'", err=True)
-                raise SystemExit(1)
+            # Simple default template
+            templates = {
+                "default": "{artist} - {album}.pdf",
+                "dated": "{artist} - {album} ({year}).pdf",
+                "simple": "{album}.pdf",
+            }
+            template = templates.get(output_name, templates["default"])
 
             # Use first album for filename
             output_filename = format_output_name(
@@ -164,8 +166,8 @@ def album(
                 output_filename = output_filename.replace(".pdf", f"_and_{len(albums)-1}_more.pdf")
             output = Path(output_filename)
 
-        # Select card type
-        selected_card_type = card_type or cfg.output.default_card_type
+        # Select card type (default to jcard_5panel)
+        selected_card_type = card_type or "jcard_5panel"
         if selected_card_type not in ("jcard_4panel", "jcard_5panel"):
             click.echo(f"Error: Unsupported card type '{selected_card_type}'. Supported: jcard_4panel, jcard_5panel", err=True)
             raise SystemExit(1)
@@ -188,62 +190,48 @@ def album(
                 click.echo("Expected format: '0,1' (two 0-based indices separated by comma)", err=True)
                 raise SystemExit(1)
 
-        # Create cards for each album with optional gradient
-        cards = []
+        # Build theme configuration with CLI option overrides
+        theme_updates = {}
+        if gradient:
+            theme_updates["use_gradient"] = True
+            theme_updates["gradient_indices"] = gradient_indices
+        if cover_art_mode:
+            theme_updates["cover_art_mode"] = cover_art_mode
+        if cover_art_align:
+            theme_updates["cover_art_align"] = cover_art_align
+        if dolby_logo:
+            theme_updates["dolby_logo"] = True
 
+        theme_updates["tape_length"] = tape_length
+
+        # Create theme with defaults + CLI overrides
+        theme = Theme(**theme_updates)
+
+        # Select card class
+        card_class = JCard4Panel if selected_card_type == "jcard_4panel" else JCard5Panel
+
+        # Create cards for each album
+        cards = []
         for album_data in albums:
             # Create AlbumArt object from cover art bytes
             album_art_obj = AlbumArt(album_data.cover_art)
 
-            # Extract colors if gradient is enabled
-            extracted_palette = None
-            extracted_gradient = None
+            # Show gradient info if enabled
             if gradient:
-                # Extract full color palette (sorted by descending frequency)
-                extracted_palette = album_art_obj.get_color_palette(max_colors=3)
-                # Select gradient colors directly from palette
-                extracted_gradient = (extracted_palette[gradient_indices[0]], extracted_palette[gradient_indices[1]])
+                click.echo(f"  Extracting color palette from album art...")
+                click.echo(f"  Using gradient colors at indices {gradient_indices[0]} and {gradient_indices[1]}")
 
-                # Show palette info
-                click.echo(f"  Extracted {len(extracted_palette)} colors from album art")
-                click.echo(f"  Using gradient colors {gradient_indices[0]} and {gradient_indices[1]} (0-based indices)")
-
-            # Create theme config with gradient enabled if flag is set
-            theme_config = cfg.themes.default
-            updates = {}
-            if gradient:
-                updates["use_gradient"] = True
-            if cover_art_mode:
-                updates["cover_art_mode"] = cover_art_mode
-            if cover_art_align:
-                updates["cover_art_align"] = cover_art_align
-
-            if updates:
-                theme_config = theme_config.model_copy(update=updates)
-
-            # Create theme with pre-computed colors
-            theme_obj = DefaultTheme(
-                theme_config,
-                color_palette=extracted_palette,
-                gradient_colors=extracted_gradient,
-            )
-
-            # Create card with theme and album art
-            if selected_card_type == "jcard_4panel":
-                card = JCard4Panel(album_data, theme_obj, album_art_obj, tape_length_minutes=tape_length)
-            else:  # jcard_5panel
-                card = JCard5Panel(album_data, theme_obj, album_art_obj, tape_length_minutes=tape_length)
+            # Create card using builder function (handles gradient extraction, font registration, etc.)
+            card = create_card_from_album(album_data, album_art_obj, card_class, theme)
             cards.append(card)
 
-        # Render PDF
-        render_dpi = dpi or cfg.output.dpi
-        include_marks = not no_crop_marks if no_crop_marks else cfg.output.include_crop_marks
-        selected_page_size = page_size or cfg.output.default_page_size
-
-        renderer = PDFRenderer(dpi=render_dpi, include_crop_marks=include_marks, page_size=selected_page_size)
+        # Render PDF with defaults or CLI overrides
+        render_dpi = dpi or 720  # Default to 720 DPI
+        include_marks = not no_crop_marks  # Invert the flag (no_crop_marks=True means include_marks=False)
+        selected_page_size = page_size or "letter"  # Default to letter
 
         click.echo(f"Generating PDF with {len(cards)} card(s) at {render_dpi} DPI on {selected_page_size} page...")
-        renderer.render_cards(cards, output)
+        render_cards_to_pdf(cards, output, dpi=render_dpi, page_size=selected_page_size, include_crop_marks=include_marks)
 
         click.echo(f"✓ J-card(s) saved to: {output}")
 

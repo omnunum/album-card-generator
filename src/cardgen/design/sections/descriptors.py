@@ -55,7 +55,7 @@ class DescriptorsSection(CardSection):
                 point_size=self.font_size,
                 leading_ratio=0.4,
                 fixed_size=False,  # Allow size reduction
-                font_family=context.font_config.family
+                font_family=context.theme.font_family
             ))
 
         return lines
@@ -85,7 +85,7 @@ class DescriptorsSection(CardSection):
                 text_y -= fitted_line.point_size + (fitted_line.point_size * fitted_line.leading_ratio)
                 continue
 
-            c.setFillColor(Color(*context.color_scheme.text))
+            c.setFillColor(Color(*context.theme.effective_text_color))
 
             # Draw descriptor text
             c.setFont(fitted_line.font_family, fitted_line.point_size)

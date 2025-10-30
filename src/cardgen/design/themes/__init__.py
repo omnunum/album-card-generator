@@ -1,5 +1,3 @@
-"""Theme implementations."""
+"""Theme utilities (empty - theme is now in config.py)."""
 
-from cardgen.design.themes.default import DefaultTheme
-
-__all__ = ["DefaultTheme"]
+__all__ = []

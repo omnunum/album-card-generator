@@ -55,7 +55,7 @@ class MetadataSection(CardSection):
                 point_size=self.font_size,
                 leading_ratio=0.25,  # 25% line spacing (same as tracklist)
                 fixed_size=False,  # Allow size reduction
-                font_family=context.font_config.family
+                font_family=context.theme.font_family
             ))
         return lines
 
@@ -88,7 +88,7 @@ class MetadataSection(CardSection):
 
         for fitted_line in fitted_lines:
             c.setFont(fitted_line.font_family, fitted_line.point_size)
-            c.setFillColor(Color(*context.color_scheme.text))
+            c.setFillColor(Color(*context.theme.effective_text_color))
 
             # Draw text with horizontal scaling if needed
             if fitted_line.horizontal_scale < 1.0:

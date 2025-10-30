@@ -1,7 +1,8 @@
 """Generic j-card layout with configurable panels."""
 
 from cardgen.api.models import Album
-from cardgen.design.base import Card, CardSection, Theme
+from cardgen.config import Theme
+from cardgen.design.base import Card, CardSection
 from cardgen.utils.dimensions import JCARD_HEIGHT, Dimensions
 
 

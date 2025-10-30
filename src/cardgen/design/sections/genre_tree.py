@@ -60,7 +60,7 @@ class GenreTreeSection(CardSection):
             point_size=self.font_size,
             leading_ratio=0.4,  # 40% line spacing
             fixed_size=True,  # Don't reduce header
-            font_family=f"{context.font_config.family}-Bold"
+            font_family=f"{context.theme.font_family}-Bold"
         ))
 
         # Genre tree lines (ASCII art - fixed size)
@@ -79,7 +79,7 @@ class GenreTreeSection(CardSection):
                     point_size=self.font_size,
                     leading_ratio=0.4,
                     fixed_size=True,  # Don't reduce or wrap ASCII art
-                    font_family=context.font_config.family,
+                    font_family=context.theme.font_family,
                     prefix=prefix  # Tree chars stay monospace, won't compress
                 ))
             else:
@@ -89,7 +89,7 @@ class GenreTreeSection(CardSection):
                     point_size=self.font_size,
                     leading_ratio=0.4,
                     fixed_size=True,
-                    font_family=context.font_config.family
+                    font_family=context.theme.font_family
                 ))
 
         return lines
@@ -119,11 +119,11 @@ class GenreTreeSection(CardSection):
                 text_y -= fitted_line.point_size + (fitted_line.point_size * fitted_line.leading_ratio)
                 continue
 
-            c.setFillColor(Color(*context.color_scheme.text))
+            c.setFillColor(Color(*context.theme.effective_text_color))
 
             # Get fonts for prefix/suffix
-            prefix_font = fitted_line.prefix_font or context.font_config.monospace_family
-            suffix_font = fitted_line.suffix_font or context.font_config.monospace_family
+            prefix_font = fitted_line.prefix_font or context.theme.effective_monospace_family
+            suffix_font = fitted_line.suffix_font or context.theme.effective_monospace_family
 
             # Calculate prefix width
             prefix_width = c.stringWidth(fitted_line.prefix, prefix_font, fitted_line.point_size) if fitted_line.prefix else 0

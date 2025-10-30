@@ -230,8 +230,8 @@ def _process_lines_at_current_size(
     # Process each line independently
     for line in lines:
         # Calculate effective width for text content (accounting for prefix/suffix)
-        prefix_font = line.prefix_font or context.font_config.monospace_family
-        suffix_font = line.suffix_font or context.font_config.monospace_family
+        prefix_font = line.prefix_font or context.theme.effective_monospace_family
+        suffix_font = line.suffix_font or context.theme.effective_monospace_family
 
         prefix_width = canvas.stringWidth(line.prefix, prefix_font, line.point_size) if line.prefix else 0
         suffix_width = canvas.stringWidth(line.suffix, suffix_font, line.point_size) if line.suffix else 0

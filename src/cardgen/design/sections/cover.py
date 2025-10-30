@@ -55,16 +55,16 @@ class CoverSection(CardSection):
 
         # Determine title font (use specific font if configured, else default to Bold)
         title_font = (
-            context.font_config.title_font
-            if context.font_config.title_font
-            else f"{context.font_config.family}-Bold"
+            context.theme.title_font
+            if context.theme.title_font
+            else f"{context.theme.font_family}-Bold"
         )
 
         # Determine artist font (use specific font if configured, else default to regular)
         artist_font = (
-            context.font_config.artist_font
-            if context.font_config.artist_font
-            else context.font_config.family
+            context.theme.artist_font
+            if context.theme.artist_font
+            else context.theme.font_family
         )
 
         # Title line (bold) - start large to maximize text size
@@ -108,7 +108,7 @@ class CoverSection(CardSection):
 
         for fitted_line in fitted_lines:
             c.setFont(fitted_line.font_family, fitted_line.point_size)
-            c.setFillColor(Color(*context.color_scheme.text))
+            c.setFillColor(Color(*context.theme.effective_text_color))
 
             # Calculate text width with scaling
             base_width = c.stringWidth(fitted_line.text, fitted_line.font_family, fitted_line.point_size)
@@ -135,8 +135,8 @@ class CoverSection(CardSection):
         c = context.canvas
 
         # Get cover art mode and alignment from theme
-        mode = context.color_scheme.cover_art_mode
-        align = context.color_scheme.cover_art_align
+        mode = context.theme.cover_art_mode
+        align = context.theme.cover_art_align
 
         # Reserve minimum space for text (will use all remaining space after art)
         min_text_height = 90  # Minimum space needed for large text + padding

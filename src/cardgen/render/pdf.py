@@ -8,9 +8,17 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import inch
 from reportlab.pdfgen import canvas
 
-from cardgen.design.base import Card, RendererContext, Theme, CardSection
+from cardgen.config import Theme
+from cardgen.design.base import Card, CardSection, RendererContext
 from cardgen.utils.album_art import AlbumArt
-from cardgen.utils.dimensions import center_on_page, get_page_size, inches_to_points, Dimensions, PixelDims, PointDims
+from cardgen.utils.dimensions import (
+    Dimensions,
+    PixelDims,
+    PointDims,
+    center_on_page,
+    get_page_size,
+    inches_to_points,
+)
 
 
 class PDFRenderer:
@@ -61,9 +69,8 @@ class PDFRenderer:
             self._render_section(c, section, offset_x, offset_y, card.theme)
 
         # Draw color palette legend if available
-        color_scheme = card.theme.get_color_scheme()
-        if color_scheme.color_palette:
-            self._draw_color_palette(c, color_scheme.color_palette, card_dims, offset_x, offset_y)
+        if card.theme.color_palette:
+            self._draw_color_palette(c, card.theme.color_palette, card_dims, offset_x, offset_y)
 
         # Save PDF
         c.save()
@@ -104,8 +111,7 @@ class PDFRenderer:
                     self._draw_guides(c, card_dims, offset_x, offset_y, card.get_fold_lines())
 
                 # Draw gradient background if enabled
-                color_scheme = card.theme.get_color_scheme()
-                if color_scheme.gradient_enabled and color_scheme.gradient_start and color_scheme.gradient_end:
+                if card.theme.use_gradient and card.theme.gradient_start and card.theme.gradient_end:
                     # Need to offset card_dims for proper positioning on page
                     gradient_dims = Dimensions(
                         width=card_dims.width,
@@ -115,7 +121,7 @@ class PDFRenderer:
                         dpi=self.dpi
                     )
                     self._draw_gradient_background(
-                        c, gradient_dims, color_scheme.gradient_start, color_scheme.gradient_end
+                        c, gradient_dims, card.theme.gradient_start, card.theme.gradient_end
                     )
 
                 # Draw each section
@@ -124,9 +130,8 @@ class PDFRenderer:
                     self._render_section(c, section, offset_x, offset_y, card.theme)
 
                 # Draw color palette legend if available
-                color_scheme = card.theme.get_color_scheme()
-                if color_scheme.color_palette:
-                    self._draw_color_palette(c, color_scheme.color_palette, card_dims, offset_x, offset_y)
+                if card.theme.color_palette:
+                    self._draw_color_palette(c, card.theme.color_palette, card_dims, offset_x, offset_y)
 
             # Start new page if there are more cards
             if page_idx + 2 < len(cards):
@@ -170,9 +175,8 @@ class PDFRenderer:
             y=point_dims.y,
             width=point_dims.width,
             height=point_dims.height,
-            font_config=theme.get_font_config(),
-            color_scheme=theme.get_color_scheme(),
-            padding=inches_to_points(theme.get_padding()),
+            theme=theme,
+            padding=inches_to_points(theme.padding),
             dpi=self.dpi,
         )
 

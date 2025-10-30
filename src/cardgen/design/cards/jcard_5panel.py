@@ -1,7 +1,8 @@
 """5-panel cassette j-card layout implementation."""
 
 from cardgen.api.models import Album
-from cardgen.design.base import Card, CardSection, Theme
+from cardgen.config import Theme
+from cardgen.design.base import Card, CardSection
 from cardgen.design.sections import CoverSection, MetadataSection, SpineSection, TracklistSection
 from cardgen.design.sections.descriptors import DescriptorsSection
 from cardgen.design.sections.genre_tree import GenreTreeSection
@@ -135,8 +136,8 @@ class JCard5Panel(Card):
                 tracks=self.album.tracks,
                 side_capacity=self.side_capacity,
                 title="Tracklist",
-                track_title_overflow=self.theme.get_track_title_overflow(),
-                min_char_spacing=self.theme.get_min_track_title_char_spacing(),
+                track_title_overflow=self.theme.track_overflow,
+                min_char_spacing=self.theme.min_char_spacing,
             )
         )
 

@@ -1,71 +1,8 @@
 # Navidrome Configuration
+# This is the only required configuration!
+# All theme settings have sensible defaults and can be overridden via CLI or Theme() parameters.
+
 [navidrome]
 url = "https://music.example.com"
 username = "your_username"
 password = "your_password"
-
-# Output Settings
-[output]
-# Default card type: jcard_4panel, jcard_2panel (future), jcard_6panel (future)
-default_card_type = "jcard_4panel"
-
-# Default theme: default, minimal (future)
-default_theme = "default"
-
-# Default page size: letter, half, a4, a5
-default_page_size = "letter"
-
-# DPI for PDF output (300 minimum, 600 recommended)
-dpi = 600
-
-# Include crop marks and fold guides on PDF
-include_crop_marks = true
-
-# Named output templates
-# Use placeholders: {artist}, {album}, {year}, {date}
-[output.templates]
-default = "{artist} - {album}.pdf"
-dated = "{artist} - {album} ({year}).pdf"
-simple = "{album}.pdf"
-
-# Default Theme Configuration
-[themes.default]
-# Font for variable-width text (titles, artist names, track titles)
-# Built-in options: "Helvetica", "Times-Roman", "Courier"
-font_family = "Helvetica"
-
-# Font for fixed-width text (track numbers, durations) - ensures perfect alignment
-# Requires iosevka-regular.ttf and iosevka-bold.ttf in src/cardgen/fonts/
-# Falls back to "Courier" if Iosevka fonts not found
-monospace_font_family = "Iosevka"
-
-# Google Fonts for album title and artist (optional)
-# Fonts are automatically downloaded and cached on first use
-# Browse fonts at: https://fonts.google.com
-# Common weights: 100 (Thin), 200 (Extra Light), 300 (Light), 400 (Regular),
-#                 500 (Medium), 600 (Semi Bold), 700 (Bold), 800 (Extra Bold), 900 (Black)
-# title_google_font = "Orbitron"
-# title_font_weight = 900
-# artist_google_font = "Roboto"
-# artist_font_weight = 400
-
-title_font_size = 14
-artist_font_size = 12
-track_font_size = 10
-metadata_font_size = 8
-
-# Track title overflow handling when title collides with duration
-# "truncate" - Add ellipsis (...) and cut off the title
-# "wrap" - Line break and indent continuation on next line
-track_title_overflow = "truncate"
-
-# Color scheme (RGB 0-1 format)
-background_color = [1.0, 1.0, 1.0]  # white
-text_color = [0.0, 0.0, 0.0]        # black
-accent_color = [0.2, 0.2, 0.2]      # dark gray
-
-# Gradient Background Options
-# Enable to extract colors from album art and create gradient backgrounds
-use_gradient = false
-gradient_text_color = [1.0, 1.0, 1.0]    # white text for gradient mode
-gradient_accent_color = [0.8, 0.8, 0.8]  # light gray for gradient mode

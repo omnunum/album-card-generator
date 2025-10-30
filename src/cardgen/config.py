@@ -2,9 +2,9 @@
 
 import tomllib
 from pathlib import Path
-from typing import Any
+from typing import Literal
 
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, Field
 
 from cardgen.types import CoverArtAlign, CoverArtMode, TrackTitleOverflow
 
@@ -17,74 +17,171 @@ class NavidromeConfig(BaseModel):
     password: str
 
 
-class OutputTemplates(BaseModel):
-    """Named output template patterns."""
+class Theme(BaseModel):
+    """
+    Complete theme configuration with all visual settings.
 
-    default: str = "{artist} - {album}.pdf"
-    dated: str = "{artist} - {album} ({year}).pdf"
-    simple: str = "{album}.pdf"
+    All parameters have sensible defaults. Override only what you need using
+    Pydantic's model_copy():
 
+        base = Theme(title_google_font="Orbitron")
+        variant = base.model_copy(update={"use_gradient": True})
+    """
 
-class OutputConfig(BaseModel):
-    """Output configuration."""
-
-    default_card_type: str = "jcard_4panel"
-    default_theme: str = "default"
-    default_page_size: str = "letter"
-    dpi: int = Field(default=600, ge=300, le=1200)
-    include_crop_marks: bool = True
-    templates: OutputTemplates = Field(default_factory=OutputTemplates)
-
-
-class ThemeColorScheme(BaseModel):
-    """Theme color configuration."""
-
-    background_color: list[float] = [1.0, 1.0, 1.0]
-    text_color: list[float] = [0.0, 0.0, 0.0]
-    accent_color: list[float] = [0.2, 0.2, 0.2]
-
-
-class DefaultThemeConfig(BaseModel):
-    """Default theme configuration."""
-
+    # ========================================================================
+    # Fonts
+    # ========================================================================
     font_family: str = "Helvetica"
-    monospace_font_family: str = "Iosevka"  # For fixed-width content (track numbers, durations)
-    title_font_size: int = 14
-    artist_font_size: int = 12
-    subtitle_font_size: int = 12  # For side headers (Side A/B) and minimap
-    track_font_size: int = 10
-    metadata_font_size: int = 8
-    # Google Fonts for title and artist (optional)
-    title_google_font: str | None = None  # e.g., "Orbitron"
-    title_font_weight: int = 700  # 400=regular, 700=bold, 900=black, etc.
-    artist_google_font: str | None = None  # e.g., "Roboto"
+    """Base font family for variable-width text (titles, artist, tracks)."""
+
+    monospace_family: str = "Iosevka"
+    """Font for fixed-width content (track numbers, durations). Falls back to Courier if unavailable."""
+
+    title_google_font: str | None = None
+    """Google Font for album title (e.g., "Orbitron"). Auto-downloaded and cached."""
+
+    title_font_weight: int = 700
+    """Font weight for title (100-900). Default: 700 (Bold)."""
+
+    artist_google_font: str | None = None
+    """Google Font for artist name (e.g., "Roboto"). Auto-downloaded and cached."""
+
     artist_font_weight: int = 400
-    background_color: list[float] = [1.0, 1.0, 1.0]
-    text_color: list[float] = [0.0, 0.0, 0.0]
-    accent_color: list[float] = [0.2, 0.2, 0.2]
-    track_title_overflow: TrackTitleOverflow = "truncate"  # "truncate" or "wrap"
-    min_track_title_char_spacing: float = -1.0  # Minimum character spacing for track titles (negative = compressed)
-    # Gradient background options
-    use_gradient: bool = False  # Extract colors from album art for gradient background
-    gradient_text_color: list[float] = [1.0, 1.0, 1.0]  # White text for gradient mode
-    gradient_accent_color: list[float] = [0.8, 0.8, 0.8]  # Light gray for gradient mode
-    # Cover art display options
-    cover_art_mode: CoverArtMode = "square"  # "square" or "fullscale" (top-to-bottom with crop)
-    cover_art_align: CoverArtAlign = "center"  # "center", "left", or "right" (for fullscale mode)
+    """Font weight for artist (100-900). Default: 400 (Regular)."""
 
+    title_size: int = 14
+    """Font size for album title in points."""
 
-class ThemesConfig(BaseModel):
-    """All theme configurations."""
+    artist_size: int = 12
+    """Font size for artist name in points."""
 
-    default: DefaultThemeConfig = Field(default_factory=DefaultThemeConfig)
+    subtitle_size: int = 12
+    """Font size for side headers (Side A/B) and minimap in points."""
+
+    track_size: int = 10
+    """Font size for track titles in points."""
+
+    metadata_size: int = 8
+    """Font size for metadata text in points."""
+
+    # ========================================================================
+    # Computed Fonts (filled by factory after processing)
+    # ========================================================================
+    title_font: str = "Helvetica-Bold"
+    """Resolved font name for title (e.g., "Orbitron-900" after Google Font registration)."""
+
+    artist_font: str = "Helvetica"
+    """Resolved font name for artist (e.g., "Roboto-400" after Google Font registration)."""
+
+    # ========================================================================
+    # Colors
+    # ========================================================================
+    background: tuple[float, float, float] = (1.0, 1.0, 1.0)
+    """Background color as RGB in 0-1 range. Default: white."""
+
+    text: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    """Text color as RGB in 0-1 range. Default: black."""
+
+    accent: tuple[float, float, float] = (0.2, 0.2, 0.2)
+    """Accent color as RGB in 0-1 range. Default: dark gray."""
+
+    # ========================================================================
+    # Gradient
+    # ========================================================================
+    use_gradient: bool = False
+    """Extract gradient background colors from album art."""
+
+    gradient_text: tuple[float, float, float] = (1.0, 1.0, 1.0)
+    """Text color for gradient mode as RGB in 0-1 range. Default: white."""
+
+    gradient_accent: tuple[float, float, float] = (0.8, 0.8, 0.8)
+    """Accent color for gradient mode as RGB in 0-1 range. Default: light gray."""
+
+    gradient_indices: tuple[int, int] = (0, 1)
+    """Which colors from extracted palette to use for gradient (start_index, end_index)."""
+
+    # ========================================================================
+    # Computed Gradient Colors (filled by factory after color extraction)
+    # ========================================================================
+    gradient_start: tuple[float, float, float] | None = None
+    """Starting color for gradient (extracted from album art)."""
+
+    gradient_end: tuple[float, float, float] | None = None
+    """Ending color for gradient (extracted from album art)."""
+
+    color_palette: list[tuple[float, float, float]] | None = None
+    """Full color palette extracted from album art (sorted by frequency)."""
+
+    # ========================================================================
+    # Cover Art
+    # ========================================================================
+    cover_art_mode: CoverArtMode = "square"
+    """Cover art display mode: "square" (centered) or "fullscale" (full height with crop)."""
+
+    cover_art_align: CoverArtAlign = "center"
+    """Horizontal alignment for fullscale mode: "center", "left", or "right"."""
+
+    # ========================================================================
+    # Track Formatting
+    # ========================================================================
+    track_overflow: TrackTitleOverflow = "truncate"
+    """Track title overflow handling: "truncate" (ellipsis) or "wrap" (line break)."""
+
+    min_char_spacing: float = -1.0
+    """Minimum character spacing for track titles (negative = compressed). -1.0 = aggressive."""
+
+    # ========================================================================
+    # Card Settings
+    # ========================================================================
+    padding: float = 0.125
+    """Default padding in inches."""
+
+    tape_length: int = 90
+    """Cassette tape length in minutes (for side balancing). Default: 90 (C90)."""
+
+    dolby_logo: bool = False
+    """Show Dolby NR logo on the spine."""
+
+    # ========================================================================
+    # Computed Properties
+    # ========================================================================
+
+    @property
+    def effective_monospace_family(self) -> str:
+        """
+        Get monospace font family with Iosevka fallback.
+
+        Returns "Courier" if Iosevka is specified but not available.
+        """
+        if self.monospace_family == "Iosevka":
+            from cardgen.fonts import is_iosevka_available
+            if not is_iosevka_available():
+                return "Courier"
+        return self.monospace_family
+
+    @property
+    def effective_text_color(self) -> tuple[float, float, float]:
+        """
+        Get text color based on gradient mode.
+
+        Returns gradient_text if use_gradient is True, otherwise text.
+        """
+        return self.gradient_text if self.use_gradient else self.text
+
+    @property
+    def effective_accent_color(self) -> tuple[float, float, float]:
+        """
+        Get accent color based on gradient mode.
+
+        Returns gradient_accent if use_gradient is True, otherwise accent.
+        """
+        return self.gradient_accent if self.use_gradient else self.accent
 
 
 class Config(BaseModel):
-    """Root configuration."""
+    """Root configuration (minimal - just Navidrome credentials)."""
 
     navidrome: NavidromeConfig
-    output: OutputConfig = Field(default_factory=OutputConfig)
-    themes: ThemesConfig = Field(default_factory=ThemesConfig)
 
 
 def load_config(config_path: Path | None = None) -> Config:

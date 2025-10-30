@@ -54,6 +54,11 @@ class DefaultThemeConfig(BaseModel):
     subtitle_font_size: int = 12  # For side headers (Side A/B) and minimap
     track_font_size: int = 10
     metadata_font_size: int = 8
+    # Google Fonts for title and artist (optional)
+    title_google_font: str | None = None  # e.g., "Orbitron"
+    title_font_weight: int = 700  # 400=regular, 700=bold, 900=black, etc.
+    artist_google_font: str | None = None  # e.g., "Roboto"
+    artist_font_weight: int = 400
     background_color: list[float] = [1.0, 1.0, 1.0]
     text_color: list[float] = [0.0, 0.0, 0.0]
     accent_color: list[float] = [0.2, 0.2, 0.2]

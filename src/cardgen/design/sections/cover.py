@@ -53,13 +53,27 @@ class CoverSection(CardSection):
         """
         lines: list[Line] = []
 
+        # Determine title font (use specific font if configured, else default to Bold)
+        title_font = (
+            context.font_config.title_font
+            if context.font_config.title_font
+            else f"{context.font_config.family}-Bold"
+        )
+
+        # Determine artist font (use specific font if configured, else default to regular)
+        artist_font = (
+            context.font_config.artist_font
+            if context.font_config.artist_font
+            else context.font_config.family
+        )
+
         # Title line (bold) - start large to maximize text size
         lines.append(Line(
             text=self.title,
             point_size=40,  # Start large, will auto-reduce to fit
             leading_ratio=0.2,  # Spacing after title
             fixed_size=False,
-            font_family=f"{context.font_config.family}-Bold"
+            font_family=title_font
         ))
 
         # Artist line (regular) - start large to maximize text size
@@ -68,7 +82,7 @@ class CoverSection(CardSection):
             point_size=30,  # Start large, will auto-reduce to fit
             leading_ratio=0.2,  # No spacing after (last line)
             fixed_size=False,
-            font_family=context.font_config.family
+            font_family=artist_font
         ))
 
         return lines

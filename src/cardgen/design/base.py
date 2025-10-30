@@ -41,6 +41,9 @@ class FontConfig:
     subtitle_size: int  # For side headers (Side A/B) and minimap
     track_size: int
     metadata_size: int
+    # Specific fonts for title and artist (override family if set)
+    title_font: str | None = None  # If None, falls back to family
+    artist_font: str | None = None  # If None, falls back to family
 
 
 @dataclass

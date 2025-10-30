@@ -2,7 +2,7 @@
 
 from cardgen.config import DefaultThemeConfig
 from cardgen.design.base import ColorScheme, FontConfig, Theme
-from cardgen.fonts import is_iosevka_available
+from cardgen.fonts import is_iosevka_available, register_google_font
 from cardgen.types import CoverArtAlign, CoverArtMode, RGBColor, TrackTitleOverflow
 
 
@@ -49,6 +49,32 @@ class DefaultTheme(Theme):
         if monospace_family == "Iosevka" and not is_iosevka_available():
             monospace_family = "Courier"
 
+        # Register and setup Google Fonts if configured
+        title_font = None
+        artist_font = None
+
+        if self.config.title_google_font:
+            registered_name = register_google_font(
+                self.config.title_google_font,
+                self.config.title_font_weight
+            )
+            if registered_name:
+                title_font = registered_name
+            else:
+                # Fallback to default bold font
+                title_font = f"{self.config.font_family}-Bold"
+
+        if self.config.artist_google_font:
+            registered_name = register_google_font(
+                self.config.artist_google_font,
+                self.config.artist_font_weight
+            )
+            if registered_name:
+                artist_font = registered_name
+            else:
+                # Fallback to default font
+                artist_font = self.config.font_family
+
         return FontConfig(
             family=self.config.font_family,
             monospace_family=monospace_family,
@@ -57,6 +83,8 @@ class DefaultTheme(Theme):
             subtitle_size=self.config.subtitle_font_size,
             track_size=self.config.track_font_size,
             metadata_size=self.config.metadata_font_size,
+            title_font=title_font,
+            artist_font=artist_font,
         )
 
     def get_color_scheme(self) -> ColorScheme:

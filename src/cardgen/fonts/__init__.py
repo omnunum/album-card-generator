@@ -2,9 +2,12 @@
 
 import logging
 from pathlib import Path
+from typing import Optional
 
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
+
+from cardgen.fonts.google import get_google_font
 
 logger = logging.getLogger(__name__)
 
@@ -63,3 +66,41 @@ def is_iosevka_available() -> bool:
         return True
     except Exception:
         return False
+
+
+def register_google_font(family: str, weight: int = 400) -> Optional[str]:
+    """
+    Download and register a Google Font with ReportLab.
+
+    Args:
+        family: Font family name (e.g., "Orbitron", "Roboto").
+        weight: Font weight (e.g., 400 for regular, 700 for bold).
+
+    Returns:
+        Registered font name (e.g., "Orbitron-700"), or None if registration failed.
+    """
+    # Generate registered font name
+    font_name = f"{family.replace(' ', '')}-{weight}"
+
+    # Check if already registered
+    try:
+        pdfmetrics.getFont(font_name)
+        logger.info(f"Google Font already registered: {font_name}")
+        return font_name
+    except Exception:
+        pass  # Not registered yet
+
+    # Download the font
+    font_path = get_google_font(family, weight)
+    if not font_path:
+        logger.error(f"Failed to download Google Font: {family} (weight {weight})")
+        return None
+
+    # Register with ReportLab
+    try:
+        pdfmetrics.registerFont(TTFont(font_name, str(font_path)))
+        logger.info(f"Registered Google Font: {font_name}")
+        return font_name
+    except Exception as e:
+        logger.error(f"Failed to register Google Font {font_name}: {e}")
+        return None

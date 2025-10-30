@@ -153,36 +153,43 @@ render_cards_to_pdf([card], "my_card.pdf")
 ### Multiple Cards with Different Styling
 
 ```python
-from cardgen import CardConfig, create_card_from_url, load_config, render_cards_to_pdf
+from cardgen import Theme, create_card_from_album, render_cards_to_pdf, load_config
+from cardgen.api import NavidromeClient
+from cardgen.design import JCard4Panel, JCard5Panel
+from cardgen.utils.album_art import AlbumArt
 
 config = load_config()
+client = NavidromeClient(config.navidrome)
 
 # Card 1: Orbitron font with gradient
-card1 = create_card_from_url(
-    "album/abc123",
-    config,
-    CardConfig(
+album1 = client.get_album("abc123")
+art1 = AlbumArt(album1.cover_art)
+card1 = create_card_from_album(
+    album1, art1, JCard5Panel,
+    Theme(
         title_google_font="Orbitron",
         title_font_weight=900,
         use_gradient=True,
-        card_type="jcard_5panel",
-    ),
+    )
 )
 
 # Card 2: Custom colors, fullscale cover art
-card2 = create_card_from_url(
-    "album/xyz789",
-    config,
-    CardConfig(
-        background_color=[0.95, 0.95, 0.95],
-        text_color=[0.1, 0.1, 0.1],
+album2 = client.get_album("xyz789")
+art2 = AlbumArt(album2.cover_art)
+card2 = create_card_from_album(
+    album2, art2, JCard4Panel,
+    Theme(
+        background_color=(0.95, 0.95, 0.95),
+        text_color=(0.1, 0.1, 0.1),
         cover_art_mode="fullscale",
         cover_art_align="left",
-    ),
+    )
 )
 
 # Card 3: All defaults
-card3 = create_card_from_url("album/def456", config)
+album3 = client.get_album("def456")
+art3 = AlbumArt(album3.cover_art)
+card3 = create_card_from_album(album3, art3, JCard4Panel)
 
 # Render all to a single multi-page PDF (2 cards per page)
 render_cards_to_pdf([card1, card2, card3], "my_cards.pdf", dpi=720)
@@ -190,7 +197,7 @@ render_cards_to_pdf([card1, card2, card3], "my_cards.pdf", dpi=720)
 
 ### Available Configuration Options
 
-All parameters in `CardConfig` are optional. Override only what you need:
+All parameters in `Theme` are optional. Override only what you need:
 
 **Fonts:**
 - `font_family`: Base font (default: "Helvetica")
@@ -199,18 +206,17 @@ All parameters in `CardConfig` are optional. Override only what you need:
 - `title_font_size`, `artist_font_size`, `track_font_size`, `metadata_font_size`
 
 **Colors:**
-- `background_color`, `text_color`, `accent_color`: RGB values (0-1 range)
+- `background_color`, `text_color`, `accent_color`: RGB tuples (0-1 range)
 - `use_gradient`: Extract gradient from album art (bool)
 - `gradient_text_color`, `gradient_accent_color`: Colors for gradient mode
-- `gradient_color_indices`: Which colors from palette to use (tuple)
+- `gradient_indices`: Which colors from palette to use (tuple)
 
 **Cover Art:**
 - `cover_art_mode`: "square" or "fullscale"
 - `cover_art_align`: "center", "left", or "right" (for fullscale)
 
 **Card Settings:**
-- `card_type`: "jcard_4panel" or "jcard_5panel"
-- `tape_length_minutes`: Cassette length (60, 90, 120, etc.)
+- `tape_length`: Cassette length in minutes (60, 90, 120, etc.)
 - `dolby_logo`: Show Dolby NR logo (bool)
 - `track_title_overflow`: "truncate" or "wrap"
 - `min_track_title_char_spacing`: Character spacing (negative = compressed)
@@ -220,7 +226,7 @@ All parameters in `CardConfig` are optional. Override only what you need:
 Google Fonts are automatically downloaded and cached on first use:
 
 ```python
-CardConfig(
+Theme(
     title_google_font="Orbitron",    # Font family name
     title_font_weight=900,           # 100-900 (Thin to Black)
     artist_google_font="Roboto",

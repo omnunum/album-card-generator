@@ -49,19 +49,19 @@ class Theme(BaseModel):
     artist_font_weight: int = 400
     """Font weight for artist (100-900). Default: 400 (Regular)."""
 
-    title_size: int = 14
+    title_font_size: int = 14
     """Font size for album title in points."""
 
-    artist_size: int = 12
+    artist_font_size: int = 12
     """Font size for artist name in points."""
 
-    subtitle_size: int = 12
+    subtitle_font_size: int = 12
     """Font size for side headers (Side A/B) and minimap in points."""
 
-    track_size: int = 10
+    track_font_size: int = 10
     """Font size for track titles in points."""
 
-    metadata_size: int = 8
+    metadata_font_size: int = 8
     """Font size for metadata text in points."""
 
     # ========================================================================
@@ -76,13 +76,13 @@ class Theme(BaseModel):
     # ========================================================================
     # Colors
     # ========================================================================
-    background: tuple[float, float, float] = (1.0, 1.0, 1.0)
+    background_color: tuple[float, float, float] = (1.0, 1.0, 1.0)
     """Background color as RGB in 0-1 range. Default: white."""
 
-    text: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    text_color: tuple[float, float, float] = (0.0, 0.0, 0.0)
     """Text color as RGB in 0-1 range. Default: black."""
 
-    accent: tuple[float, float, float] = (0.2, 0.2, 0.2)
+    accent_color: tuple[float, float, float] = (0.2, 0.2, 0.2)
     """Accent color as RGB in 0-1 range. Default: dark gray."""
 
     # ========================================================================
@@ -91,10 +91,10 @@ class Theme(BaseModel):
     use_gradient: bool = False
     """Extract gradient background colors from album art."""
 
-    gradient_text: tuple[float, float, float] = (1.0, 1.0, 1.0)
+    gradient_text_color: tuple[float, float, float] = (1.0, 1.0, 1.0)
     """Text color for gradient mode as RGB in 0-1 range. Default: white."""
 
-    gradient_accent: tuple[float, float, float] = (0.8, 0.8, 0.8)
+    gradient_accent_color: tuple[float, float, float] = (0.8, 0.8, 0.8)
     """Accent color for gradient mode as RGB in 0-1 range. Default: light gray."""
 
     gradient_indices: tuple[int, int] = (0, 1)
@@ -124,10 +124,10 @@ class Theme(BaseModel):
     # ========================================================================
     # Track Formatting
     # ========================================================================
-    track_overflow: TrackTitleOverflow = "truncate"
+    track_title_overflow: TrackTitleOverflow = "truncate"
     """Track title overflow handling: "truncate" (ellipsis) or "wrap" (line break)."""
 
-    min_char_spacing: float = -1.0
+    min_track_title_char_spacing: float = -1.0
     """Minimum character spacing for track titles (negative = compressed). -1.0 = aggressive."""
 
     # ========================================================================
@@ -164,18 +164,18 @@ class Theme(BaseModel):
         """
         Get text color based on gradient mode.
 
-        Returns gradient_text if use_gradient is True, otherwise text.
+        Returns gradient_text_color if use_gradient is True, otherwise text_color.
         """
-        return self.gradient_text if self.use_gradient else self.text
+        return self.gradient_text_color if self.use_gradient else self.text_color
 
     @property
     def effective_accent_color(self) -> tuple[float, float, float]:
         """
         Get accent color based on gradient mode.
 
-        Returns gradient_accent if use_gradient is True, otherwise accent.
+        Returns gradient_accent_color if use_gradient is True, otherwise accent_color.
         """
-        return self.gradient_accent if self.use_gradient else self.accent
+        return self.gradient_accent_color if self.use_gradient else self.accent_color
 
 
 class Config(BaseModel):

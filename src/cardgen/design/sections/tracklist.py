@@ -32,7 +32,7 @@ class TracklistSection(CardSection):
         side_capacity: int,
         title: str = "Tracklist",
         track_title_overflow: str = "truncate",
-        min_char_spacing: float = -1.0,
+        min_track_title_char_spacing: float = -1.0,
     ) -> None:
         """
         Initialize tracklist section.
@@ -44,14 +44,14 @@ class TracklistSection(CardSection):
             side_capacity: Maximum duration per side in seconds.
             title: Section title.
             track_title_overflow: How to handle long track titles ("truncate" or "wrap").
-            min_char_spacing: Minimum character spacing for track titles (negative = compressed).
+            min_track_title_char_spacing: Minimum character spacing for track titles (negative = compressed).
         """
         super().__init__(name, dimensions)
         self.tracks = tracks
         self.side_capacity = side_capacity
         self.title = title
         self.track_title_overflow = track_title_overflow
-        self.min_char_spacing = min_char_spacing
+        self.min_track_title_char_spacing = min_track_title_char_spacing
 
     def render(self, context: RendererContext) -> None:
         """Render track listing with Side A/B and duration minimap."""
@@ -61,13 +61,13 @@ class TracklistSection(CardSection):
 
         # Title
         c.setFont(
-            f"{context.theme.font_family}-Bold", context.theme.title_size
+            f"{context.theme.font_family}-Bold", context.theme.title_font_size
         )
         title_y = (
             context.y # location of the bottom of the card within the page
             + context.height # start at the top of the card
             - context.padding # go down the size of the padding
-            - context.theme.title_size # go down the size of the title text
+            - context.theme.title_font_size # go down the size of the title text
         )
         # text will draw "above" where our text_y line is
         c.drawString(context.x + context.padding, title_y, self.title)
@@ -92,7 +92,7 @@ class TracklistSection(CardSection):
         # Render fitted lines
         text_y = (
             title_y # start at the bottom of the title
-            - (context.theme.title_size * 0.2) # go down portion of the title text for a text-to-text buffer
+            - (context.theme.title_font_size * 0.2) # go down portion of the title text for a text-to-text buffer
             - fitted_lines[0].point_size # go down the size of our first line
         )
 
@@ -122,7 +122,7 @@ class TracklistSection(CardSection):
         if any(t.side == "A" for t in self.tracks):
             lines.append(Line(
                 text="Side A",
-                point_size=context.theme.subtitle_size,
+                point_size=context.theme.subtitle_font_size,
                 leading_ratio=(1/4),  # Spacing after header
                 fixed_size=True,  # Never reduce this during iterations
                 font_family=f"{context.theme.font_family}-Bold"
@@ -132,7 +132,7 @@ class TracklistSection(CardSection):
             for track in [t for t in self.tracks if t.side == "A"]:
                 lines.append(Line(
                     text=track.title,
-                    point_size=context.theme.track_size,
+                    point_size=context.theme.track_font_size,
                     leading_ratio=(1/8),  # Spacing between tracks
                     track=track,  # Reference to original track
                     font_family=context.theme.font_family,
@@ -144,7 +144,7 @@ class TracklistSection(CardSection):
         if any(t.side == "B" for t in self.tracks):
             lines.append(Line(
                 text="Side B",
-                point_size=context.theme.subtitle_size,
+                point_size=context.theme.subtitle_font_size,
                 leading_ratio=(1/4),  # Spacing after header
                 fixed_size=True,  # Never reduce this during iterations
                 font_family=f"{context.theme.font_family}-Bold"
@@ -154,7 +154,7 @@ class TracklistSection(CardSection):
             for track in [t for t in self.tracks if t.side == "B"]:
                 lines.append(Line(
                     text=track.title,
-                    point_size=context.theme.track_size,
+                    point_size=context.theme.track_font_size,
                     leading_ratio=(1/8),  # Spacing between tracks
                     track=track,  # Reference to original track
                     font_family=context.theme.font_family,
@@ -386,7 +386,7 @@ class TracklistSection(CardSection):
 
                 # Draw track number
                 if segment.track_number is not None and segment_width > 5:
-                    c.setFillColor(Color(*context.theme.background))
+                    c.setFillColor(Color(*context.theme.background_color))
                     c.setFont(f"{context.theme.effective_monospace_family}-Bold", track_font_size)
                     track_num_str = str(segment.track_number)
                     track_num_width = c.stringWidth(
@@ -430,7 +430,7 @@ class TracklistSection(CardSection):
             # Draw vertical separator line (but not after the last segment)
             current_x += segment_width
             if i < len(segments) - 1:
-                c.setStrokeColor(Color(*context.theme.background))
+                c.setStrokeColor(Color(*context.theme.background_color))
                 c.setLineWidth(0.5)
                 c.line(current_x, y - height, current_x, y)
 
@@ -477,7 +477,7 @@ class TracklistSection(CardSection):
 
                 # Draw track number vertically (upright), horizontally centered in segment
                 if segment.track_number is not None and segment_width > 5:
-                    c.setFillColor(Color(*context.theme.background))
+                    c.setFillColor(Color(*context.theme.background_color))
                     # Use bold font for better print visibility
                     c.setFont(f"{context.theme.effective_monospace_family}-Bold", track_font_size)
                     track_num_str = str(segment.track_number)
@@ -527,7 +527,7 @@ class TracklistSection(CardSection):
             # Draw vertical separator line (but not after the last segment)
             current_x += segment_width
             if i < len(segments) - 1:
-                c.setStrokeColor(Color(*context.theme.background))
+                c.setStrokeColor(Color(*context.theme.background_color))
                 c.setLineWidth(0.5)
                 c.line(current_x, y - height, current_x, y)
 

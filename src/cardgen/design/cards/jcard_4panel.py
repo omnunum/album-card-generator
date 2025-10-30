@@ -80,8 +80,8 @@ class JCard4Panel(Card):
                 tracks=self.album.tracks,
                 side_capacity=self.side_capacity,
                 title="Tracklist",
-                track_title_overflow=self.theme.track_overflow,
-                min_char_spacing=self.theme.min_char_spacing,
+                track_title_overflow=self.theme.track_title_overflow,
+                min_track_title_char_spacing=self.theme.min_track_title_char_spacing,
             )
         )
 

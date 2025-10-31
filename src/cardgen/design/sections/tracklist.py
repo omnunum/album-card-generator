@@ -299,34 +299,6 @@ class TracklistSection(CardSection):
 
         return text_y
 
-    def _build_minimap_segments(
-        self, tape_side: TapeSide, unused_duration_offset: float = 0
-    ) -> list[MinimapSegment]:
-        """Build list of segments for minimap rendering."""
-        segments = []
-
-        # Add leading unused space (for Side B - tape flip logic)
-        if unused_duration_offset > 0:
-            segments.append(
-                MinimapSegment(duration=unused_duration_offset, is_hatched=True)
-            )
-
-        # Add track segments
-        for track in tape_side.tracks:
-            segments.append(
-                MinimapSegment(duration=track.duration, track_number=track.track_number)
-            )
-
-        # Add trailing unused space
-        # Total duration = offset (if Side B) + tracks + trailing
-        total_track_duration = sum(track.duration for track in tape_side.tracks)
-        total_used_duration = unused_duration_offset + total_track_duration
-        trailing_unused = tape_side.max_duration - total_used_duration
-        if trailing_unused > 0:
-            segments.append(MinimapSegment(duration=trailing_unused, is_hatched=True))
-
-        return segments
-
     def _draw_minimap_for_tracks(
         self,
         context: RendererContext,

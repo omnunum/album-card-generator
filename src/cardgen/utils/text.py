@@ -11,50 +11,6 @@ if TYPE_CHECKING:
     from cardgen.design.base import RendererContext
 
 
-
-def calculate_max_font_size(
-    canvas: Canvas, text: str, font_family: str, max_length: float, max_height: float,
-    min_size: float = 6, max_size: float = 72, safe_margin: float = 0, step: float = 0.25
-) -> float:
-    """
-    Calculate the maximum font size that will fit text in available space.
-
-    Args:
-        canvas: ReportLab canvas for measuring text.
-        text: Text to measure.
-        font_family: Font family name.
-        max_length: Maximum width for the text.
-        max_height: Maximum height for the text.
-        min_size: Minimum font size to consider (default: 6).
-        max_size: Maximum font size to consider (default: 72).
-        safe_margin: Additional margin to subtract from available space (default: 0).
-        step: Step size for font size increments (default: 1.0, use 0.25 for finer granularity).
-
-    Returns:
-        The largest font size that fits within constraints.
-    """
-    # Apply safe margin to constraints
-    effective_max_length = max_length - (safe_margin * 2)
-    effective_max_height = max_height - (safe_margin * 2)
-
-    # Find the largest font size that fits
-    best_size = min_size
-
-    # Generate range with custom step size
-    current_size = max_size
-    while current_size >= min_size:
-        text_width = canvas.stringWidth(text, font_family, current_size)
-        text_height = current_size  # Approximate text height as font size
-
-        if text_width <= effective_max_length and text_height <= effective_max_height:
-            best_size = current_size
-            break
-
-        current_size -= step
-
-    return best_size
-
-
 # ============================================================================
 # Advanced Text Block Fitting with Arbitrary Line Sizes
 # ============================================================================

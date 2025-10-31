@@ -1,9 +1,13 @@
 """Cover section implementation."""
 
+import io
+import logging
 import os
 
+import requests
 from reportlab.graphics import renderPDF
 from reportlab.lib.colors import Color
+from reportlab.lib.utils import ImageReader
 from svglib.svglib import svg2rlg
 
 from cardgen.design.base import CardSection, RendererContext
@@ -246,3 +250,64 @@ class CoverSection(CardSection):
 
                     # Render the logo
                     renderPDF.draw(drawing, c, logo_x, logo_y)
+
+        # Render label logo if specified in theme
+        if context.theme.label_logo:
+            try:
+                # Load logo image from path or URL
+                if context.theme.label_logo.startswith(('http://', 'https://')):
+                    # URL - fetch with requests
+                    import requests
+                    response = requests.get(context.theme.label_logo, timeout=10)
+                    response.raise_for_status()
+                    logo_bytes = response.content
+                else:
+                    # Local file path
+                    with open(context.theme.label_logo, 'rb') as f:
+                        logo_bytes = f.read()
+
+                # Load with PIL
+                from PIL import Image
+                img = Image.open(io.BytesIO(logo_bytes))
+
+                # Scale to max 35 points on largest dimension, maintain aspect ratio
+                logo_max_pts = 35
+                aspect_ratio = img.width / img.height
+
+                if img.width >= img.height:
+                    # Width is largest dimension
+                    logo_width = logo_max_pts
+                    logo_height = logo_max_pts / aspect_ratio
+                else:
+                    # Height is largest dimension
+                    logo_height = logo_max_pts
+                    logo_width = logo_max_pts * aspect_ratio
+
+                # Convert to ImageReader for ReportLab (preserve alpha channel)
+                img_reader = ImageReader(img)
+
+                # Position at bottom right with padding
+                logo_padding = inches_to_points(1/16)  # Same padding as Dolby
+                logo_x = context.x + context.width - logo_width - logo_padding
+                logo_y = context.y + logo_padding
+
+                # Draw the logo with alpha support
+                c.drawImage(
+                    img_reader,
+                    logo_x,
+                    logo_y,
+                    width=logo_width,
+                    height=logo_height,
+                    mask='auto',  # Enable PNG alpha transparency
+                    preserveAspectRatio=True,
+                )
+
+            except (
+                requests.RequestException,
+                OSError,
+                Image.UnidentifiedImageError,
+                ValueError
+            ) as e:
+                # Log error but continue rendering
+                logger = logging.getLogger(__name__)
+                logger.warning(f"Failed to load or render label logo '{context.theme.label_logo}': {e}")

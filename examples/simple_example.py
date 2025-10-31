@@ -24,7 +24,8 @@ card = create_card(
         artist_font_size=30,
         artist_google_font="Orbitron",
         artist_font_weight=400,
-        dolby_logo=True
+        dolby_logo=True,
+        label_logo="https://kagi.com/proxy/gb1qta628tre1.png?c=TklOzPjLPioJ5YMJT75bSqbOvNy81tkBsxLuoTItbsNXavdMe7R68XGmq94gzX0y"
     ),
 )
 

@@ -142,6 +142,9 @@ class Theme(BaseModel):
     dolby_logo: bool = False
     """Show Dolby NR logo on the spine."""
 
+    label_logo: str | None = None
+    """Path to label logo file (local or HTTP URL). Scaled to 70 pts on largest dimension."""
+
     # ========================================================================
     # Computed Properties
     # ========================================================================

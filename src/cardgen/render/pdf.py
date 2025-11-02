@@ -269,32 +269,33 @@ class PDFRenderer:
 
         # Position palette to the right of the card
         palette_x = point_dims.x + point_dims.width + 18  # 18pts gap from card
-        palette_y_start = point_dims.y + point_dims.height - 24  # Start slightly lower
+        palette_y_start = point_dims.y + point_dims.height - 16  # Start slightly lower
 
-        square_size = 24  # 24pts square
-        gap = 4  # 4pts gap between squares
-        font_size = 7
+        swatch_width = 24  # 24pts width (unchanged for surface area)
+        swatch_height = 16  # 16pts height (reduced from 24 for density)
+        gap = 1  # 2pts gap between swatches (reduced from 4)
+        font_size = 6  # 6pts font (reduced from 7)
 
         c.setFont("Helvetica", font_size)
 
         for i, color in enumerate(palette):
-            # Calculate position
-            y = palette_y_start - i * (square_size + gap + font_size + 4)
+            # Calculate position - 26pts vertical spacing per swatch
+            y = palette_y_start - i * (swatch_height + gap + font_size + 2)
 
-            # Draw colored square
+            # Draw colored rectangle
             r, g, b = color
             c.setFillColor(Color(r, g, b))
             c.setStrokeColor(black)
             c.setLineWidth(0.5)
-            c.rect(palette_x, y, square_size, square_size, fill=1, stroke=1)
+            c.rect(palette_x, y, swatch_width, swatch_height, fill=1, stroke=1)
 
             # Draw number label
             c.setFillColor(black)
-            c.drawString(palette_x, y + square_size + 2, f"{i}")
+            c.drawString(palette_x, y + swatch_height + 2, f"{i}")
 
             # Draw hex color code
             hex_color = f"#{int(r*255):02x}{int(g*255):02x}{int(b*255):02x}"
-            c.drawString(palette_x + square_size + 4, y + square_size / 2 - 2, hex_color)
+            c.drawString(palette_x + swatch_width + 4, y + swatch_height / 2 - 2, hex_color)
 
     def _draw_guides(
         self,

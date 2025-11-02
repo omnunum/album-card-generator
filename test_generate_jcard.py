@@ -4,10 +4,10 @@
 from pathlib import Path
 
 from cardgen.api.models import Album, Track
-from cardgen.config import DefaultThemeConfig
-from cardgen.design.cards import JCard4Panel
-from cardgen.design.themes import DefaultTheme
-from cardgen.render import PDFRenderer
+from cardgen.config import Theme
+from cardgen.design.cards.jcard_4panel import JCard4Panel
+from cardgen.render.pdf import PDFRenderer
+from cardgen.utils.album_art import AlbumArt
 
 # Create sample album - 72 minutes total, tracks between 2-7 minutes
 # Designed to fill both sides of a C90 tape (45 min per side)
@@ -45,16 +45,17 @@ cover_art_buffer = io.BytesIO()
 img.save(cover_art_buffer, format='PNG')
 cover_art_bytes = cover_art_buffer.getvalue()
 
-# Create album
+# Create album with genre tree and descriptors
 album = Album(
     id="test-album-001",
     title="Neon Nights",
     artist="Synthwave Collective",
     year=2025,
-    genre="Synthwave / Electronic",
+    genres=["Electronic", "Synthwave", "Retrowave", "Chillwave"],
     label="Retro Records",
     cover_art=cover_art_bytes,
-    tracks=tracks
+    tracks=tracks,
+    rym_descriptors=["atmospheric", "nocturnal", "warm", "lush", "melodic", "futuristic", "energetic"]
 )
 
 print(f"Creating j-card for: {album.artist} - {album.title}")
@@ -62,14 +63,13 @@ print(f"Total duration: {album.format_total_duration()}")
 print(f"Tracks: {len(tracks)}")
 
 # Create theme
-theme_config = DefaultThemeConfig()
-theme = DefaultTheme(theme_config)
+theme = Theme()
+
+# Create album art wrapper
+album_art = AlbumArt(cover_art_bytes)
 
 # Create card with 90-minute tape
-card = JCard4Panel(album, theme, tape_length_minutes=90)
-
-print(f"\nSide A: {len(card.side_a.tracks)} tracks ({card.side_a.total_duration // 60}:{card.side_a.total_duration % 60:02d})")
-print(f"Side B: {len(card.side_b.tracks)} tracks ({card.side_b.total_duration // 60}:{card.side_b.total_duration % 60:02d})")
+card = JCard4Panel(album, theme, album_art, tape_length_minutes=90)
 
 # Render PDF
 output_path = Path("test_jcard.pdf")

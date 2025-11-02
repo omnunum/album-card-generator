@@ -80,7 +80,7 @@ class JCard5Panel(Card):
                 ),
                 album=self.album,
                 font_size=9.0,
-                padding_override=1/16
+                padding_override=1/32
             )
         )
 

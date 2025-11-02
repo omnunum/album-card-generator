@@ -9,8 +9,8 @@ from reportlab.pdfgen.canvas import Canvas
 from cardgen.api.models import Track
 from cardgen.design.base import CardSection, RendererContext
 from cardgen.utils.dimensions import Dimensions
-from cardgen.utils.tape import TapeSide
-from cardgen.utils.text import fit_text_block, Line
+from cardgen.utils.text import fit_text_block, Line, measure_text_height
+from cardgen.fonts import resolve_font
 
 
 @dataclass
@@ -63,14 +63,14 @@ class TracklistSection(CardSection):
         c.setFillColor(Color(*context.theme.effective_text_color))
 
         # Title
-        c.setFont(
-            f"{context.theme.font_family}-Bold", context.theme.title_font_size
-        )
+        tracklist_title_font_size = 18
+        title_font = resolve_font(f"{context.theme.font_family}-bold")
+        c.setFont(title_font, tracklist_title_font_size)
         title_y = (
             context.y # location of the bottom of the card within the page
             + context.height # start at the top of the card
             - context.padding # go down the size of the padding
-            - context.theme.title_font_size # go down the size of the title text
+            - measure_text_height(self.title, title_font, tracklist_title_font_size) # go down the size of the title text
         )
         # text will draw "above" where our text_y line is
         c.drawString(context.x + context.padding, title_y, self.title)
@@ -95,7 +95,7 @@ class TracklistSection(CardSection):
         # Render fitted lines
         text_y = (
             title_y # start at the bottom of the title
-            - (context.theme.title_font_size * 0.2) # go down portion of the title text for a text-to-text buffer
+            - (tracklist_title_font_size * 0.2) # go down portion of the title text for a text-to-text buffer
             - fitted_lines[0].point_size # go down the size of our first line
         )
 
@@ -260,8 +260,8 @@ class TracklistSection(CardSection):
                     suffix = ""
 
                 # Get fonts
-                prefix_font = fitted_line.prefix_font or context.theme.effective_monospace_family
-                suffix_font = fitted_line.suffix_font or context.theme.effective_monospace_family
+                prefix_font = fitted_line.prefix_font or context.theme.monospace_family
+                suffix_font = fitted_line.suffix_font or context.theme.monospace_family
 
                 # Calculate widths
                 prefix_width = c.stringWidth(prefix, prefix_font, fitted_line.point_size) if prefix else 0
@@ -354,10 +354,10 @@ class TracklistSection(CardSection):
                 # Draw track number
                 if segment.track_number is not None and segment_width > 5:
                     c.setFillColor(Color(*context.theme.background_color))
-                    c.setFont(f"{context.theme.effective_monospace_family}-Bold", track_font_size)
+                    c.setFont(context.theme.monospace_family_bold, track_font_size)
                     track_num_str = str(segment.track_number)
                     track_num_width = c.stringWidth(
-                        track_num_str, f"{context.theme.effective_monospace_family}-Bold", track_font_size
+                        track_num_str, context.theme.monospace_family_bold, track_font_size
                     )
 
                     # Check if the full track number fits
@@ -372,7 +372,7 @@ class TracklistSection(CardSection):
                         tens_digit = segment.track_number // 10
                         last_digit_str = str(last_digit)
                         last_digit_width = c.stringWidth(
-                            last_digit_str, f"{context.theme.effective_monospace_family}-Bold", track_font_size
+                            last_digit_str, context.theme.monospace_family_bold, track_font_size
                         )
 
                         segment_middle_x = current_x + segment_width / 2

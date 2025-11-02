@@ -18,7 +18,9 @@ lapalux = create_double_album_card(
     config=config,
     theme=Theme(
         use_gradient=True,
-        gradient_indices=(0, 1),  # Use most frequent colors
+        gradient_indices=(1, 9),  # Use most frequent colors
+        artist_font_size=16,
+        album_title_font_size=18,
         tape_length=100,
         dolby_logo=True
     )
@@ -31,6 +33,10 @@ producer = create_card(
         use_gradient=True,
         gradient_indices=(1, 2),  # Use most frequent colors
         tape_length=90,
+        artist_font="stop",
+        artist_font_size=18,
+        title_font="jethose",
+        album_title_font_size=28,
         label_logo="https://kagi.com/proxy/gb1qta628tre1.png?c=TklOzPjLPioJ5YMJT75bSqbOvNy81tkBsxLuoTItbsNXavdMe7R68XGmq94gzX0y",
         dolby_logo=True
     )

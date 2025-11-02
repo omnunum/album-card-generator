@@ -4,7 +4,9 @@ from cardgen.api.models import Album
 from cardgen.config import Theme
 from cardgen.design.base import Card, CardSection
 from cardgen.design.sections import CoverSection, MetadataSection, SpineSection, TracklistSection
+from cardgen.design.sections.container import ContainerSection
 from cardgen.design.sections.descriptors import DescriptorsSection
+from cardgen.design.sections.genre_tree import GenreTreeSection
 from cardgen.utils.album_art import AlbumArt
 from cardgen.utils.dimensions import (
     JCARD_BACK_WIDTH,
@@ -61,12 +63,16 @@ class JCard4Panel(Card):
         """
         sections: list[CardSection] = []
 
-        # Inside panel - Split vertically: 70% tracklist, 30% descriptors
+        # Inside panel - Split vertically: 60% tracklist, 40% genre/descriptors with 1/16" bottom margin
         inside_panel = self.panels["inside"]
+        bottom_margin = 0.0625  # 1/16" margin at bottom
 
-        # Tracklist at top: 70% of height
-        tracklist_height = inside_panel.height * 0.7
-        tracklist_y = inside_panel.y + (inside_panel.height * 0.3)  # Positioned above descriptors
+        # Available height after accounting for bottom margin
+        available_height = inside_panel.height - bottom_margin
+
+        # Tracklist at top: 60% of available height
+        tracklist_height = available_height * 0.6
+        tracklist_y = inside_panel.y + bottom_margin + (available_height * 0.4)  # Positioned above genre/descriptors
 
         sections.append(
             TracklistSection(
@@ -85,22 +91,50 @@ class JCard4Panel(Card):
             )
         )
 
-        # Descriptors at bottom: 30% of height
-        descriptors_height = inside_panel.height * 0.3
-        descriptors_y = inside_panel.y  # At bottom of panel
+        # Genre tree and descriptors at bottom: 40% of available height, split horizontally
+        bottom_section_height = available_height * 0.4
+        bottom_section_y = inside_panel.y + bottom_margin  # Above bottom margin
 
+        # Create genre tree section (left half)
+        genre_tree = GenreTreeSection(
+            name="inside_genre_tree",
+            dimensions=Dimensions(
+                width=inside_panel.width * 0.5,
+                height=bottom_section_height,
+                x=inside_panel.x,
+                y=bottom_section_y
+            ),
+            album=self.album,
+            font_size=9.0,
+            padding_override=0.0625,
+        )
+
+        # Create descriptors section (right half)
+        descriptors = DescriptorsSection(
+            name="inside_descriptors",
+            dimensions=Dimensions(
+                width=inside_panel.width * 0.5,
+                height=bottom_section_height,
+                x=inside_panel.x + (inside_panel.width * 0.5),
+                y=bottom_section_y
+            ),
+            album=self.album,
+            font_size=9.0,
+            padding_override=0.0625,
+        )
+
+        # Container to hold genre tree and descriptors side by side
         sections.append(
-            DescriptorsSection(
-                name="inside_descriptors",
+            ContainerSection(
+                name="inside_bottom",
                 dimensions=Dimensions(
                     width=inside_panel.width,
-                    height=descriptors_height,
+                    height=bottom_section_height,
                     x=inside_panel.x,
-                    y=descriptors_y
+                    y=bottom_section_y
                 ),
-                album=self.album,
-                font_size=10.0,
-                padding_override=0.125,
+                children=[genre_tree, descriptors],
+                layout="horizontal"
             )
         )
 
@@ -110,7 +144,7 @@ class JCard4Panel(Card):
                 dimensions=self.panels["back"],
                 album=self.album,
                 font_size=9.0,  # Increased from 5.0, fits better than 10.0
-                padding_override=1/16
+                padding_override=1/32
             )
         )
 

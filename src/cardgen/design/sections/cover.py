@@ -74,7 +74,7 @@ class CoverSection(CardSection):
         # Title line (bold) - start at theme max font size to maximize text size
         lines.append(Line(
             text=self.title,
-            point_size=context.theme.title_font_size,  # Max font size from theme, will auto-reduce to fit
+            point_size=context.theme.album_title_font_size,  # Max font size from theme, will auto-reduce to fit
             leading_ratio=0.2,  # Spacing after title
             fixed_size=False,
             font_family=title_font
@@ -241,7 +241,7 @@ class CoverSection(CardSection):
             width=context.height,  # Original height becomes width after rotation
             height=text_width_pts,  # Original text width becomes height
             theme=context.theme,
-            padding=context.padding,
+            padding=context.padding / 2,
             dpi=context.dpi
         )
         self._render_text_section(text_context)
@@ -252,8 +252,7 @@ class CoverSection(CardSection):
         c = context.canvas
 
         # Calculate available space for text (respect safe margins)
-        safe_margin_pts = inches_to_points(SAFE_MARGIN)
-        available_text_width = context.width - (context.padding * 2) - (safe_margin_pts * 2)
+        available_text_width = context.width - (context.padding * 2)
         available_text_height = context.height - (context.padding * 2)
 
         # Build and fit text lines
@@ -262,7 +261,7 @@ class CoverSection(CardSection):
             c, lines, context,
             max_width=available_text_width,
             max_height=available_text_height,
-            min_horizontal_scale=0.85,
+            min_horizontal_scale=0.75,
             split_max=2,
             min_point_size=6.0 if context.theme.cover_art_mode == "compact" else 8.0
         )

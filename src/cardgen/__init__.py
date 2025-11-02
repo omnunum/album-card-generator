@@ -6,6 +6,8 @@ __version__ = "0.1.0"
 from cardgen.api import (
     create_card,
     create_card_from_album,
+    create_double_album_card,
+    create_double_album_card_from_albums,
     render_cards_to_pdf,
 )
 from cardgen.api.navidrome import NavidromeClient
@@ -19,6 +21,8 @@ __all__ = [
     "Theme",
     "create_card",
     "create_card_from_album",
+    "create_double_album_card",
+    "create_double_album_card_from_albums",
     "render_cards_to_pdf",
     "load_config",
     "NavidromeClient",

@@ -4,9 +4,9 @@ from __future__ import annotations
 import copy
 import logging
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import TYPE_CHECKING, List
 from reportlab.pdfgen.canvas import Canvas
+from cardgen.fonts import get_font_path
 
 try:
     import freetype
@@ -52,7 +52,7 @@ class Line:
     horizontal_scale: float = 1.0
     fixed_size: bool = False
     track: Track | None = None
-    font_family: str = "Helvetica"
+    font_family: str = "helvetica"
     prefix: str = ""
     suffix: str = ""
     prefix_font: str | None = None
@@ -64,7 +64,7 @@ class Line:
             self.adjusted_point_size = self.point_size * 0.75
 
 
-def measure_text_height(text: str, font_path: Path, point_size: float) -> float:
+def measure_text_height(text: str, font_family: str, point_size: float) -> float:
     """
     Measure the actual visual height of text using HarfBuzz and FreeType.
 
@@ -82,6 +82,11 @@ def measure_text_height(text: str, font_path: Path, point_size: float) -> float:
     """
     if not HB_AVAILABLE:
         logger.warning("HarfBuzz/FreeType not available, falling back to estimation")
+        return point_size * 0.75
+
+    # Get the font path for measurement
+    if not (font_path := get_font_path(font_family)):
+        # No path available (might be a PDF built-in font)
         return point_size * 0.75
 
     if not text or not font_path or not font_path.exists():
@@ -188,7 +193,7 @@ def _split_line_at_word_boundary(
         List of text segments (up to split_max + 1 lines).
     """
     words = text.split()
-    lines = []
+    lines : list[str] = []
     current_line = ""
 
     for word in words:
@@ -245,7 +250,7 @@ def _truncate_at_word_boundary(
     words = text.split()
     truncated = ""
 
-    for i, word in enumerate(words):
+    for i, _ in enumerate(words):
         test_line = " ".join(words[:i+1])
         width = _measure_line_width(canvas, test_line, font_family, point_size, horizontal_scale)
 
@@ -281,13 +286,13 @@ def _process_lines_at_current_size(
     Returns:
         Processed lines with updated text, horizontal_scale, and potentially more lines from splits.
     """
-    processed_lines = []
+    processed_lines : list[Line] = []
 
     # Process each line independently
     for line in lines:
         # Calculate effective width for text content (accounting for prefix/suffix)
-        prefix_font = line.prefix_font or context.theme.effective_monospace_family
-        suffix_font = line.suffix_font or context.theme.effective_monospace_family
+        prefix_font = line.prefix_font or context.theme.monospace_family
+        suffix_font = line.suffix_font or context.theme.monospace_family
 
         prefix_width = canvas.stringWidth(line.prefix, prefix_font, line.point_size) if line.prefix else 0
         suffix_width = canvas.stringWidth(line.suffix, suffix_font, line.point_size) if line.suffix else 0
@@ -337,7 +342,7 @@ def _process_lines_at_current_size(
                 )
 
                 # Calculate scale needed for each split line
-                split_parts = []
+                split_parts : list[tuple[str, float]]= []
                 for i, split_text in enumerate(split_lines):
                     split_width = canvas.stringWidth(split_text, line.font_family, line.point_size)
                     split_scale = effective_width / split_width if split_width > effective_width else 1.0
@@ -403,8 +408,6 @@ def _populate_adjusted_point_sizes(lines: List[Line]) -> None:
     Args:
         lines: List of Line objects to populate (modified in place).
     """
-    from cardgen.fonts import get_font_path
-
     for line in lines:
         # Combine prefix, text, and suffix to measure the full line
         full_text = line.prefix + line.text + line.suffix
@@ -412,15 +415,8 @@ def _populate_adjusted_point_sizes(lines: List[Line]) -> None:
             line.adjusted_point_size = line.point_size * 0.75
             continue
 
-        # Get the font path for measurement
-        font_path = get_font_path(line.font_family)
-        if not font_path:
-            # No path available (might be a PDF built-in font)
-            line.adjusted_point_size = line.point_size * 0.75
-            continue
-
         # Measure the actual text height
-        line.adjusted_point_size = measure_text_height(full_text, font_path, line.point_size)
+        line.adjusted_point_size = measure_text_height(full_text, line.font_family, line.point_size)
 
 
 def fit_text_block(

@@ -18,7 +18,7 @@ def get_google_font(family: str, weight: int = 400) -> Optional[Path]:
     Download a Google Font and return the path to the cached TTF file.
 
     Args:
-        family: Font family name (e.g., "Orbitron", "Roboto").
+        family: Font family name (case-insensitive, e.g., "orbitron", "Orbitron", "Roboto").
         weight: Font weight (e.g., 400 for regular, 700 for bold).
 
     Returns:
@@ -27,8 +27,9 @@ def get_google_font(family: str, weight: int = 400) -> Optional[Path]:
     # Ensure cache directory exists
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Generate cache filename
-    cache_filename = f"{family.replace(' ', '')}-{weight}.ttf"
+    # Normalize family name to lowercase for cache filename
+    family_lower = family.replace(' ', '').lower()
+    cache_filename = f"{family_lower}-{weight}.ttf"
     cache_path = CACHE_DIR / cache_filename
 
     # Return cached file if it exists
@@ -38,7 +39,9 @@ def get_google_font(family: str, weight: int = 400) -> Optional[Path]:
 
     # Construct Google Fonts CSS API v1 URL
     # Format: https://fonts.googleapis.com/css?family=Orbitron:400&display=swap
-    font_url = f"https://fonts.googleapis.com/css?family={family.replace(' ', '+')}:{weight}&display=swap"
+    # API requires capitalized family name (title case)
+    family_capitalized = family.replace(' ', '+').title()
+    font_url = f"https://fonts.googleapis.com/css?family={family_capitalized}:{weight}&display=swap"
 
     try:
         logger.info(f"Downloading Google Font: {family} (weight {weight})")

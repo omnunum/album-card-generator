@@ -4,7 +4,7 @@ from reportlab.lib.colors import Color
 
 from cardgen.api.models import Album
 from cardgen.design.base import CardSection, RendererContext
-from cardgen.utils.dimensions import Dimensions
+from cardgen.utils.dimensions import Dimensions, inches_to_points
 from cardgen.utils.genres import get_leaf_genres
 from cardgen.utils.text import Line, fit_text_block
 
@@ -109,14 +109,14 @@ class MetadataSection(CardSection):
 
         # Use custom padding if provided, otherwise use theme default
         if self.padding_override is not None:
-            padding = self.padding_override * 72  # Convert inches to points
+            padding = inches_to_points(self.padding_override)  # Convert inches to points
         else:
             padding = context.padding
 
         # Process album data into left and right columns
         # Left column: Leaf genres
         leaf_genres = get_leaf_genres(self.album.genres)
-        left_text_lines = []
+        left_text_lines : list[str] = []
         if leaf_genres:
             # First genre gets "Genre: " prefix
             left_text_lines.append(f"Genre: {leaf_genres[0]}")
@@ -126,7 +126,7 @@ class MetadataSection(CardSection):
                 left_text_lines.append(f"            {genre}")
 
         # Right column: Album metadata
-        right_text_lines = []
+        right_text_lines : list[str] = []
         if self.album.year:
             right_text_lines.append(f"Year: {self.album.year}")
         if self.album.label:
@@ -143,7 +143,7 @@ class MetadataSection(CardSection):
         c.saveState()
 
         # Translate to bottom-left of where rotated content should appear, then rotate
-        c.translate(context.x + context.width, context.y)
+        c.translate(context.x + context.width - padding, context.y)
         c.rotate(90)  # 90 degrees counterclockwise
 
         # Now we're in a rotated coordinate system

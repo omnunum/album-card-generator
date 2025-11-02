@@ -4,7 +4,7 @@ from reportlab.lib.colors import Color
 
 from cardgen.api.models import Album
 from cardgen.design.base import CardSection, RendererContext
-from cardgen.utils.dimensions import Dimensions
+from cardgen.utils.dimensions import Dimensions, inches_to_points
 from cardgen.utils.text import Line, fit_text_block
 
 
@@ -120,10 +120,10 @@ class DescriptorsSection(CardSection):
 
         # Use custom padding if provided, otherwise use larger padding for genre panel
         if self.padding_override is not None:
-            padding = self.padding_override * 72  # Convert inches to points
+            padding = inches_to_points(self.padding_override)
         else:
             # Use larger padding for genre panel (0.15" = 10.8 points instead of default ~7.2 points)
-            padding = 0.15 * 72  # Convert inches to points
+            padding = inches_to_points(0.15) # Convert inches to points
 
         # Calculate available space
         available_height = context.height - (padding * 2)

@@ -24,7 +24,7 @@ class Theme(BaseModel):
     All parameters have sensible defaults. Override only what you need using
     Pydantic's model_copy():
 
-        base = Theme(title_google_font="Orbitron")
+        base = Theme(title_font="orbitron:700")
         variant = base.model_copy(update={"use_gradient": True})
     """
 
@@ -32,24 +32,21 @@ class Theme(BaseModel):
     # Fonts
     # ========================================================================
     font_family: str = "Helvetica"
-    """Base font family for variable-width text (titles, artist, tracks)."""
+    """Base font family for variable-width text. Auto-resolves: local → Google Fonts → fallback."""
 
-    monospace_family: str = "Iosevka"
+    monospace_family: str = "Iosevka-Regular"
     """Font for fixed-width content (track numbers, durations). Falls back to Courier if unavailable."""
 
-    title_google_font: str | None = None
-    """Google Font for album title (e.g., "Orbitron"). Auto-downloaded and cached."""
+    monospace_family_bold: str = "Iosevka-Bold"
+    """Bold variant of monospace font. Automatically resolved during font setup."""
 
-    title_font_weight: int = 700
-    """Font weight for title (100-900). Default: 700 (Bold)."""
+    title_font: str = "Helvetica-Bold"
+    """Font for album title. Supports 'fontname' or 'fontname:weight' (e.g., 'orbitron:700'). Auto-resolves: local → Google Fonts → fallback."""
 
-    artist_google_font: str | None = None
-    """Google Font for artist name (e.g., "Roboto"). Auto-downloaded and cached."""
+    artist_font: str = "Helvetica"
+    """Font for artist name. Supports 'fontname' or 'fontname:weight' (e.g., 'roboto:400'). Auto-resolves: local → Google Fonts → fallback."""
 
-    artist_font_weight: int = 400
-    """Font weight for artist (100-900). Default: 400 (Regular)."""
-
-    title_font_size: int = 14
+    album_title_font_size: int = 14
     """Font size for album title in points."""
 
     artist_font_size: int = 12
@@ -63,15 +60,6 @@ class Theme(BaseModel):
 
     metadata_font_size: int = 8
     """Font size for metadata text in points."""
-
-    # ========================================================================
-    # Computed Fonts (filled by factory after processing)
-    # ========================================================================
-    title_font: str = "Helvetica-Bold"
-    """Resolved font name for title (e.g., "Orbitron-900" after Google Font registration)."""
-
-    artist_font: str = "Helvetica"
-    """Resolved font name for artist (e.g., "Roboto-400" after Google Font registration)."""
 
     # ========================================================================
     # Colors
@@ -148,19 +136,6 @@ class Theme(BaseModel):
     # ========================================================================
     # Computed Properties
     # ========================================================================
-
-    @property
-    def effective_monospace_family(self) -> str:
-        """
-        Get monospace font family with Iosevka fallback.
-
-        Returns "Courier" if Iosevka is specified but not available.
-        """
-        if self.monospace_family == "Iosevka":
-            from cardgen.fonts import is_iosevka_available
-            if not is_iosevka_available():
-                return "Courier"
-        return self.monospace_family
 
     @property
     def effective_text_color(self) -> tuple[float, float, float]:

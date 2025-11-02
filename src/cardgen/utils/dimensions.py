@@ -108,10 +108,10 @@ class Dimensions:
             Frozen PointDims object (72 points = 1 inch).
         """
         return PointDims(
-            width=self.width * 72,
-            height=self.height * 72,
-            x=self.x * 72,
-            y=self.y * 72,
+            width=inches_to_points(self.width),
+            height=inches_to_points(self.height),
+            x=inches_to_points(self.x),
+            y=inches_to_points(self.y),
         )
 
     def to_pixels(self) -> PixelDims:

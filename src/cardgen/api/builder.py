@@ -9,7 +9,7 @@ from cardgen.api.navidrome import NavidromeClient
 from cardgen.config import Config, Theme
 from cardgen.design import Card
 from cardgen.design.cards import DoubleAlbumJCard
-from cardgen.fonts import register_fonts, register_google_font
+from cardgen.fonts import register_fonts
 from cardgen.render import PDFRenderer
 from cardgen.utils.album_art import AlbumArt
 
@@ -146,29 +146,21 @@ def create_card_from_album(
     # Use default theme if none provided
     theme = theme or Theme()
 
-    # Process theme: Register Google Fonts
+    # Process theme: Register and resolve fonts
+    from cardgen.fonts import resolve_font
     theme_updates = {}
     register_fonts()
-    if theme.title_google_font:
-        logger.info(f"Registering Google Font: {theme.title_google_font} (weight {theme.title_font_weight})")
-        font_name = register_google_font(theme.title_google_font, theme.title_font_weight)
-        if font_name:
-            theme_updates["title_font"] = font_name
-        else:
-            theme_updates["title_font"] = f"{theme.font_family}-Bold"
 
-    if theme.artist_google_font:
-        logger.info(f"Registering Google Font: {theme.artist_google_font} (weight {theme.artist_font_weight})")
-        font_name = register_google_font(theme.artist_google_font, theme.artist_font_weight)
-        if font_name:
-            theme_updates["artist_font"] = font_name
-        else:
-            theme_updates["artist_font"] = theme.font_family
+    # Resolve all font properties through unified resolution
+    theme_updates["font_family"] = resolve_font(theme.font_family, "helvetica")
+    theme_updates["title_font"] = resolve_font(theme.title_font, "helvetica-bold")
+    theme_updates["artist_font"] = resolve_font(theme.artist_font, "helvetica")
+    theme_updates["monospace_family"] = resolve_font(theme.monospace_family, "courier")
 
     # Process theme: Extract gradient colors if enabled
     if theme.use_gradient:
         logger.info("Extracting color palette from album art...")
-        extracted_palette = album_art.get_color_palette(max_colors=3)
+        extracted_palette = album_art.get_color_palette(max_colors=8)
 
         gradient_indices = theme.gradient_indices
         try:
@@ -369,29 +361,22 @@ def create_double_album_card_from_albums(
     # Use default theme if none provided
     theme = theme or Theme()
 
-    # Process theme: Register Google Fonts
+    # Process theme: Register and resolve fonts
+    from cardgen.fonts import resolve_font
     theme_updates = {}
     register_fonts()
-    if theme.title_google_font:
-        logger.info(f"Registering Google Font: {theme.title_google_font} (weight {theme.title_font_weight})")
-        font_name = register_google_font(theme.title_google_font, theme.title_font_weight)
-        if font_name:
-            theme_updates["title_font"] = font_name
-        else:
-            theme_updates["title_font"] = f"{theme.font_family}-Bold"
 
-    if theme.artist_google_font:
-        logger.info(f"Registering Google Font: {theme.artist_google_font} (weight {theme.artist_font_weight})")
-        font_name = register_google_font(theme.artist_google_font, theme.artist_font_weight)
-        if font_name:
-            theme_updates["artist_font"] = font_name
-        else:
-            theme_updates["artist_font"] = theme.font_family
+    # Resolve all font properties through unified resolution
+    theme_updates["font_family"] = resolve_font(theme.font_family, "helvetica")
+    theme_updates["title_font"] = resolve_font(theme.title_font, "helvetica-bold")
+    theme_updates["artist_font"] = resolve_font(theme.artist_font, "helvetica")
+    theme_updates["monospace_family"] = resolve_font(theme.monospace_family, "courier")
 
     # Process theme: Extract gradient colors if enabled (use first album's art)
     if theme.use_gradient:
-        logger.info("Extracting color palette from first album art...")
-        extracted_palette = album_art1.get_color_palette(max_colors=3)
+        logger.info("Extracting color palette from both album arts...")
+        extracted_palette = album_art1.get_color_palette(max_colors=6)
+        extracted_palette.extend(album_art2.get_color_palette(max_colors=6))
 
         gradient_indices = theme.gradient_indices
         try:

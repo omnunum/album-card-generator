@@ -5,7 +5,7 @@ from reportlab.lib.colors import Color
 
 from cardgen.api.models import Album
 from cardgen.design.base import CardSection, RendererContext
-from cardgen.utils.dimensions import Dimensions
+from cardgen.utils.dimensions import Dimensions, inches_to_points
 from cardgen.utils.genres import build_genre_tree
 from cardgen.utils.text import Line, fit_text_block
 
@@ -122,8 +122,8 @@ class GenreTreeSection(CardSection):
             c.setFillColor(Color(*context.theme.effective_text_color))
 
             # Get fonts for prefix/suffix
-            prefix_font = fitted_line.prefix_font or context.theme.effective_monospace_family
-            suffix_font = fitted_line.suffix_font or context.theme.effective_monospace_family
+            prefix_font = fitted_line.prefix_font or context.theme.monospace_family
+            suffix_font = fitted_line.suffix_font or context.theme.monospace_family
 
             # Calculate prefix width
             prefix_width = c.stringWidth(fitted_line.prefix, prefix_font, fitted_line.point_size) if fitted_line.prefix else 0
@@ -165,10 +165,10 @@ class GenreTreeSection(CardSection):
 
         # Use custom padding if provided, otherwise use larger padding for genre panel
         if self.padding_override is not None:
-            padding = self.padding_override * 72  # Convert inches to points
+            padding = inches_to_points(self.padding_override)
         else:
             # Use larger padding for genre panel (0.15" = 10.8 points instead of default ~7.2 points)
-            padding = 0.15 * 72  # Convert inches to points
+            padding = inches_to_points(0.15)
 
         # Calculate available space
         available_height = context.height - (padding * 2)

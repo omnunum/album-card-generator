@@ -33,6 +33,7 @@ class TracklistSection(CardSection):
         title: str = "Tracklist",
         track_title_overflow: str = "truncate",
         min_track_title_char_spacing: float = -1.0,
+        use_tape_flip_offset: bool = True,
     ) -> None:
         """
         Initialize tracklist section.
@@ -45,6 +46,7 @@ class TracklistSection(CardSection):
             title: Section title.
             track_title_overflow: How to handle long track titles ("truncate" or "wrap").
             min_track_title_char_spacing: Minimum character spacing for track titles (negative = compressed).
+            use_tape_flip_offset: Whether to offset Side B minimap by Side A unused space (for tape flip logic).
         """
         super().__init__(name, dimensions)
         self.tracks = tracks
@@ -52,6 +54,7 @@ class TracklistSection(CardSection):
         self.title = title
         self.track_title_overflow = track_title_overflow
         self.min_track_title_char_spacing = min_track_title_char_spacing
+        self.use_tape_flip_offset = use_tape_flip_offset
 
     def render(self, context: RendererContext) -> None:
         """Render track listing with Side A/B and duration minimap."""
@@ -96,10 +99,12 @@ class TracklistSection(CardSection):
             - fitted_lines[0].point_size # go down the size of our first line
         )
 
-        # Calculate Side A unused space for Side B offset
-        side_a_tracks = [t for t in self.tracks if t.side == "A"]
-        total_side_a_duration = sum(t.duration for t in side_a_tracks)
-        side_a_unused_duration = self.side_capacity - total_side_a_duration
+        # Calculate Side A unused space for Side B offset (if using tape flip logic)
+        side_a_unused_duration = 0.0
+        if self.use_tape_flip_offset:
+            side_a_tracks = [t for t in self.tracks if t.side == "A"]
+            total_side_a_duration = sum(t.duration for t in side_a_tracks)
+            side_a_unused_duration = self.side_capacity - total_side_a_duration
 
         text_y = self._render_fitted_lines(
             context, fitted_lines, text_y, text_width,
@@ -188,35 +193,31 @@ class TracklistSection(CardSection):
         c = context.canvas
         text_y = start_y
 
-        # Track which track numbers we've rendered the first line for
-        track_numbers_first_line_rendered: set[int] = set()
+        # Track which (side, track_number) pairs we've rendered the first line for
+        tracks_first_line_rendered: set[tuple[str | None, int]] = set()
 
         for i, fitted_line in enumerate(fitted_lines):
             # Determine line type
             is_header = fitted_line.text in ["Side A", "Side B"]
-            is_first_line_of_track = fitted_line.track is not None and fitted_line.track.track_number not in track_numbers_first_line_rendered
-            is_continuation_line = fitted_line.track is not None and fitted_line.track.track_number in track_numbers_first_line_rendered
+            is_first_line_of_track = fitted_line.track is not None and (fitted_line.track.side, fitted_line.track.track_number) not in tracks_first_line_rendered
 
             if is_header:
-                 # The text bounding box extends higher than the normal text in order to fig ligatures and accents
-                #   which leaves empty space.  Since we don't ever fill that space, we consider only about 80%
-                #   of that space used.
-                visible_text_ratio = 0.75
-                visible_point_size = fitted_line.point_size * visible_text_ratio
+                # Use actual measured text height for better visual alignment
+                visible_point_size = fitted_line.adjusted_point_size
 
                 # Render side header with minimap
                 side_letter = fitted_line.text[-1]  # "A" or "B"
                 side_tracks = [t for t in self.tracks if t.side == side_letter]
                 unused_offset = side_a_unused_duration if side_letter == "B" else 0
                 # when we get to B our text_y (the bottom of where we draw up from) is only offset
-                #   based on the small text point size, but we draw a subtitle point size up, which 
-                #   causes overdraw.  We need to un-offset the smaller amount and then re-offset 
+                #   based on the small text point size, but we draw a subtitle point size up, which
+                #   causes overdraw.  We need to un-offset the smaller amount and then re-offset
                 #   the larger amount
                 if side_letter == "B":
                     text_y = (
-                        text_y 
-                        - fitted_lines[i-1].point_size 
-                        + visible_text_ratio 
+                        text_y
+                        + fitted_lines[i-1].point_size
+                        - fitted_line.point_size
                     )
                 c.setFillColor(Color(*context.theme.effective_text_color))
                 c.setFont(f"{context.theme.font_family}-Bold", fitted_line.point_size)
@@ -241,7 +242,7 @@ class TracklistSection(CardSection):
 
                 text_y -= visible_point_size + (visible_point_size * fitted_line.leading_ratio)
 
-            elif is_first_line_of_track or is_continuation_line:
+            else:
                 # Render track line (first line or continuation)
                 track = fitted_line.track
                 if track is None:
@@ -252,7 +253,7 @@ class TracklistSection(CardSection):
                     # First line: use track number and duration
                     prefix = fitted_line.prefix
                     suffix = fitted_line.suffix
-                    track_numbers_first_line_rendered.add(track.track_number)
+                    tracks_first_line_rendered.add((track.side, track.track_number))
                 else:
                     # Continuation line: use indent, no duration
                     prefix = "    "
@@ -275,19 +276,13 @@ class TracklistSection(CardSection):
 
                 # Draw track title with horizontal scaling
                 c.setFont(context.theme.font_family, fitted_line.point_size)
-                if fitted_line.horizontal_scale < 1.0:
-                    c.saveState()
-                    title_x = context.x + context.padding + prefix_width
-                    c.translate(title_x, text_y)
-                    c.scale(fitted_line.horizontal_scale, 1.0)
-                    c.drawString(0, 0, fitted_line.text)
-                    c.restoreState()
-                else:
-                    c.drawString(
-                        context.x + context.padding + prefix_width,
-                        text_y,
-                        fitted_line.text
-                    )
+                
+                c.saveState()
+                title_x = context.x + context.padding + prefix_width
+                c.translate(title_x, text_y)
+                c.scale(fitted_line.horizontal_scale, 1.0)
+                c.drawString(0, 0, fitted_line.text)
+                c.restoreState()
 
                 # Draw suffix (duration) - right-aligned
                 if suffix:

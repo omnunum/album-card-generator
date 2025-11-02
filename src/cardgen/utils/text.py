@@ -2,9 +2,20 @@
 
 from __future__ import annotations
 import copy
-from dataclasses import dataclass
+import logging
+from dataclasses import dataclass, field
+from pathlib import Path
 from typing import TYPE_CHECKING, List
 from reportlab.pdfgen.canvas import Canvas
+
+try:
+    import freetype
+    import uharfbuzz as hb
+    HB_AVAILABLE = True
+except ImportError:
+    HB_AVAILABLE = False
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from cardgen.api.models import Track
@@ -23,6 +34,7 @@ class Line:
     Attributes:
         text: The text content.
         point_size: Font size in points.
+        adjusted_point_size: Size in points of the tallest glyph in the text at the nominal point_size
         leading_ratio: Multiplier for leading (vertical space between baselines) relative to point_size.
         horizontal_scale: Character width scale (1.0 = 100%, 0.8 = 80% condensed).
         fixed_size: If True, point_size is never reduced during fitting iterations (for fixed-height elements).
@@ -35,6 +47,7 @@ class Line:
     """
     text: str
     point_size: float = 16.0
+    adjusted_point_size: float = field(default=0.0)
     leading_ratio: float = 1.0
     horizontal_scale: float = 1.0
     fixed_size: bool = False
@@ -44,6 +57,93 @@ class Line:
     suffix: str = ""
     prefix_font: str | None = None
     suffix_font: str | None = None
+
+    def __post_init__(self):
+        """Initialize adjusted_point_size with fallback if not explicitly set."""
+        if self.adjusted_point_size == 0.0:
+            self.adjusted_point_size = self.point_size * 0.75
+
+
+def measure_text_height(text: str, font_path: Path, point_size: float) -> float:
+    """
+    Measure the actual visual height of text using HarfBuzz and FreeType.
+
+    This calculates the bounding box of the tallest glyph in the shaped text,
+    providing a more accurate measurement than nominal point_size.
+
+    Args:
+        text: The text to measure.
+        font_path: Path to the TrueType font file.
+        point_size: Font size in points.
+
+    Returns:
+        The height of the tallest glyph in points.
+        Falls back to point_size * 0.75 if measurement fails.
+    """
+    if not HB_AVAILABLE:
+        logger.warning("HarfBuzz/FreeType not available, falling back to estimation")
+        return point_size * 0.75
+
+    if not text or not font_path or not font_path.exists():
+        return point_size * 0.75
+
+    try:
+        # Load font with FreeType
+        face = freetype.Face(str(font_path))
+        face.set_char_size(int(point_size * 64))  # 26.6 fixed-point format
+
+        # Load font with HarfBuzz
+        with open(font_path, "rb") as f:
+            fontdata = f.read()
+
+        hb_font = hb.Font(hb.Face(fontdata))
+        # Set scale to match FreeType's pixel size
+        hb_font.scale = (face.size.x_ppem, face.size.y_ppem)
+        hb.ot_font_set_funcs(hb_font)
+
+        # Shape the text
+        buf = hb.Buffer()
+        buf.add_str(text)
+        buf.guess_segment_properties()
+        hb.shape(hb_font, buf)
+
+        # Calculate bounding box
+        # In HarfBuzz/FreeType coordinates:
+        #   - baseline is at y=0
+        #   - y_bearing is distance from baseline to glyph top (positive = above baseline)
+        #   - height is typically negative (extends downward from the top)
+        ymin = float('inf')
+        ymax = float('-inf')
+
+        for info, pos in zip(buf.glyph_infos, buf.glyph_positions):
+            gid = info.codepoint
+            ext = hb_font.get_glyph_extents(gid)
+            if ext and (ext.width != 0 or ext.height != 0):  # Skip zero-size glyphs like spaces
+                # Top of glyph: y_bearing (above baseline)
+                # Bottom of glyph: y_bearing + height (height is negative)
+                glyph_top = ext.y_bearing
+                glyph_bottom = ext.y_bearing + ext.height
+                ymin = min(ymin, glyph_bottom)
+                ymax = max(ymax, glyph_top)
+
+        # HarfBuzz returns values in pixels (since we set scale to ppem)
+        # At 72 DPI (PDF standard), pixels = points, so no conversion needed
+        if ymin == float('inf') or ymax == float('-inf'):
+            # No visible glyphs (e.g., all spaces)
+            return point_size * 0.75
+
+        height = ymax - ymin
+
+        # Sanity check: height should be reasonable relative to point_size
+        if height <= 0 or height > point_size * 2:
+            logger.warning(f"Suspicious height measurement: {height}pt for {point_size}pt font, using fallback")
+            return point_size * 0.75
+
+        return height
+
+    except Exception as e:
+        logger.warning(f"Failed to measure text height: {e}, falling back to estimation")
+        return point_size * 0.75
 
 
 def _measure_line_width(
@@ -274,7 +374,7 @@ def _process_lines_at_current_size(
     return processed_lines
 
 
-def _calculate_total_height(lines: List[Line]) -> float:
+def calculate_total_height(lines: List[Line], adjusted: bool =False) -> float:
     """
     Calculate total vertical height of all lines including leading.
 
@@ -284,9 +384,43 @@ def _calculate_total_height(lines: List[Line]) -> float:
     Returns:
         Total height in points.
     """
-    total = sum(line.point_size for line in lines)
-    total += sum(line.point_size * line.leading_ratio for line in lines)
-    return total
+    text_content_height : float = sum(
+        (l.point_size if not adjusted else l.adjusted_point_size) + (l.point_size * l.leading_ratio)
+        if i != len(lines) - 1
+        else l.adjusted_point_size
+        for i, l in enumerate(lines)
+    )
+    return text_content_height
+
+
+def _populate_adjusted_point_sizes(lines: List[Line]) -> None:
+    """
+    Populate the adjusted_point_size field for each line using actual text measurement.
+
+    This measures the real visual height of the text using HarfBuzz/FreeType,
+    replacing the nominal point_size with the actual bounding box height.
+
+    Args:
+        lines: List of Line objects to populate (modified in place).
+    """
+    from cardgen.fonts import get_font_path
+
+    for line in lines:
+        # Combine prefix, text, and suffix to measure the full line
+        full_text = line.prefix + line.text + line.suffix
+        if not full_text:
+            line.adjusted_point_size = line.point_size * 0.75
+            continue
+
+        # Get the font path for measurement
+        font_path = get_font_path(line.font_family)
+        if not font_path:
+            # No path available (might be a PDF built-in font)
+            line.adjusted_point_size = line.point_size * 0.75
+            continue
+
+        # Measure the actual text height
+        line.adjusted_point_size = measure_text_height(full_text, font_path, line.point_size)
 
 
 def fit_text_block(
@@ -334,16 +468,19 @@ def fit_text_block(
         )
 
         # Calculate total height
-        total_height = _calculate_total_height(processed_lines)
+        total_height = calculate_total_height(processed_lines)
 
         # Check if we fit within vertical constraints
         if total_height <= max_height:
+            # Populate adjusted_point_size for all lines before returning
+            _populate_adjusted_point_sizes(processed_lines)
             return processed_lines
 
         # Check if we've hit minimum size
         min_size = min(line.point_size for line in current_lines)
         if min_size <= min_point_size:
             # Can't reduce further, return best effort
+            _populate_adjusted_point_sizes(processed_lines)
             return processed_lines
 
         # Reduce font sizes proportionally (skip fixed_size lines)
@@ -355,4 +492,5 @@ def fit_text_block(
 
         # If all lines are fixed_size, we can't reduce further
         if not size_changed:
+            _populate_adjusted_point_sizes(processed_lines)
             return processed_lines

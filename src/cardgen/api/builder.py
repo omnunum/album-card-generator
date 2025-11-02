@@ -8,6 +8,7 @@ from cardgen.api.models import Album
 from cardgen.api.navidrome import NavidromeClient
 from cardgen.config import Config, Theme
 from cardgen.design import Card
+from cardgen.design.cards import DoubleAlbumJCard
 from cardgen.fonts import register_fonts, register_google_font
 from cardgen.render import PDFRenderer
 from cardgen.utils.album_art import AlbumArt
@@ -252,3 +253,174 @@ def render_cards_to_pdf(
     renderer.render_cards(cards, output_path)
 
     logger.info(f"PDF saved to: {output_path}")
+
+
+def create_double_album_card(
+    url1: str,
+    url2: str,
+    config: Config,
+    theme: Theme | None = None,
+) -> DoubleAlbumJCard:
+    """
+    Create a double album card from two Navidrome album URLs.
+
+    Args:
+        url1: Navidrome album URL for first album.
+        url2: Navidrome album URL for second album.
+        config: Configuration with Navidrome credentials (from load_config()).
+        theme: Optional theme configuration. If None, uses Theme() defaults.
+
+    Returns:
+        DoubleAlbumJCard object ready to be rendered.
+
+    Raises:
+        ValueError: If URLs are not album URLs or if configuration is invalid.
+        ConnectionError: If unable to connect to Navidrome server.
+
+    Example:
+        ```python
+        from cardgen import Theme, create_double_album_card, load_config
+
+        config = load_config()
+        card = create_double_album_card("album/abc123", "album/xyz789", config)
+        ```
+    """
+    # Use default theme if none provided
+    theme = theme or Theme()
+
+    # Initialize Navidrome client
+    client = NavidromeClient(config.navidrome)
+
+    # Parse first URL
+    try:
+        resource_type1, resource_id1 = NavidromeClient.extract_id_from_url(url1)
+    except ValueError as e:
+        raise ValueError(f"Invalid URL format for first album: {e}") from e
+
+    if resource_type1 != "album":
+        raise ValueError(
+            f"First URL is for a {resource_type1}, not an album. "
+            "Use album URLs only (e.g., 'album/abc123')."
+        )
+
+    # Parse second URL
+    try:
+        resource_type2, resource_id2 = NavidromeClient.extract_id_from_url(url2)
+    except ValueError as e:
+        raise ValueError(f"Invalid URL format for second album: {e}") from e
+
+    if resource_type2 != "album":
+        raise ValueError(
+            f"Second URL is for a {resource_type2}, not an album. "
+            "Use album URLs only (e.g., 'album/abc123')."
+        )
+
+    # Fetch both albums from Navidrome
+    logger.info(f"Fetching albums {resource_id1} and {resource_id2} from Navidrome...")
+    try:
+        album1_data = client.get_album(resource_id1)
+        album2_data = client.get_album(resource_id2)
+    except Exception as e:
+        raise ConnectionError(f"Failed to fetch albums from Navidrome: {e}") from e
+
+    logger.info(f"Fetched: {album1_data.artist} - {album1_data.title}")
+    logger.info(f"Fetched: {album2_data.artist} - {album2_data.title}")
+
+    # Create AlbumArt objects
+    album_art1 = AlbumArt(album1_data.cover_art)
+    album_art2 = AlbumArt(album2_data.cover_art)
+
+    # Delegate to create_double_album_card_from_albums
+    return create_double_album_card_from_albums(
+        album1_data, album2_data, album_art1, album_art2, theme
+    )
+
+
+def create_double_album_card_from_albums(
+    album1: Album,
+    album2: Album,
+    album_art1: AlbumArt,
+    album_art2: AlbumArt,
+    theme: Theme | None = None,
+) -> DoubleAlbumJCard:
+    """
+    Create a double album card from Album and AlbumArt objects.
+
+    Args:
+        album1: First Album object with metadata and tracks.
+        album2: Second Album object with metadata and tracks.
+        album_art1: AlbumArt object for first album.
+        album_art2: AlbumArt object for second album.
+        theme: Optional theme configuration. If None, uses Theme() defaults.
+
+    Returns:
+        DoubleAlbumJCard object ready to be rendered.
+
+    Example:
+        ```python
+        from cardgen import Theme, create_double_album_card_from_albums
+
+        card = create_double_album_card_from_albums(
+            album1, album2, album_art1, album_art2,
+            Theme(use_gradient=True)
+        )
+        ```
+    """
+    # Use default theme if none provided
+    theme = theme or Theme()
+
+    # Process theme: Register Google Fonts
+    theme_updates = {}
+    register_fonts()
+    if theme.title_google_font:
+        logger.info(f"Registering Google Font: {theme.title_google_font} (weight {theme.title_font_weight})")
+        font_name = register_google_font(theme.title_google_font, theme.title_font_weight)
+        if font_name:
+            theme_updates["title_font"] = font_name
+        else:
+            theme_updates["title_font"] = f"{theme.font_family}-Bold"
+
+    if theme.artist_google_font:
+        logger.info(f"Registering Google Font: {theme.artist_google_font} (weight {theme.artist_font_weight})")
+        font_name = register_google_font(theme.artist_google_font, theme.artist_font_weight)
+        if font_name:
+            theme_updates["artist_font"] = font_name
+        else:
+            theme_updates["artist_font"] = theme.font_family
+
+    # Process theme: Extract gradient colors if enabled (use first album's art)
+    if theme.use_gradient:
+        logger.info("Extracting color palette from first album art...")
+        extracted_palette = album_art1.get_color_palette(max_colors=3)
+
+        gradient_indices = theme.gradient_indices
+        try:
+            theme_updates["gradient_start"] = extracted_palette[gradient_indices[0]]
+            theme_updates["gradient_end"] = extracted_palette[gradient_indices[1]]
+            theme_updates["color_palette"] = extracted_palette
+        except IndexError:
+            logger.warning(
+                f"Invalid gradient color indices {gradient_indices}, using first two colors."
+            )
+            theme_updates["gradient_start"] = extracted_palette[0]
+            theme_updates["gradient_end"] = extracted_palette[1]
+            theme_updates["color_palette"] = extracted_palette
+
+    # Apply theme updates (if any)
+    if theme_updates:
+        theme = theme.model_copy(update=theme_updates)
+
+    # Apply dolby logo setting to both albums
+    if theme.dolby_logo:
+        album1.show_dolby_logo = True
+        album2.show_dolby_logo = True
+
+    # Instantiate double album card
+    card = DoubleAlbumJCard(
+        album1, album2, theme, album_art1, album_art2,
+        tape_length_minutes=theme.tape_length
+    )
+
+    logger.info(f"Created DoubleAlbumJCard for '{album1.title}' and '{album2.title}'")
+
+    return card

@@ -5,7 +5,11 @@ from pathlib import Path
 import click
 
 from cardgen.api import NavidromeClient
-from cardgen.api.builder import create_card_from_album, render_cards_to_pdf
+from cardgen.api.builder import (
+    create_card_from_album,
+    create_double_album_card_from_albums,
+    render_cards_to_pdf,
+)
 from cardgen.config import Theme, format_output_name, load_config
 from cardgen.design import JCard4Panel, JCard5Panel
 from cardgen.fonts import register_fonts
@@ -116,7 +120,9 @@ def album(
     URL can be either:
     - Simple format: album/abc123
     - Full URL: http://server/app/#/album/abc123
+    - Double album (comma-delimited): album/abc123,album/xyz789
 
+    For double albums, use comma-delimited URLs to create a single card with both albums.
     Multiple albums can be specified to print on one PDF.
     """
     try:
@@ -126,23 +132,67 @@ def album(
         # Initialize Navidrome client
         client = NavidromeClient(cfg.navidrome)
 
-        # Fetch all albums
+        # Fetch all albums and determine if any are double albums
         albums = []
+        double_album_pairs = []  # Store tuples of (album1, album2) for double albums
+        first_album = None  # Track first album for filename
+
         for url in urls:
-            # Extract album ID from URL
-            resource_type, resource_id = NavidromeClient.extract_id_from_url(url)
+            # Check if this is a double album (comma-delimited)
+            if ',' in url:
+                url_parts = [u.strip() for u in url.split(',')]
+                if len(url_parts) != 2:
+                    click.echo(f"Error: Double album URL must have exactly 2 albums separated by comma.", err=True)
+                    raise SystemExit(1)
 
-            if resource_type != "album":
-                click.echo(f"Error: URL is for a {resource_type}, not an album. Use `cardgen playlist` instead.", err=True)
-                raise SystemExit(1)
+                # Fetch both albums for double album
+                url1, url2 = url_parts
 
-            # Fetch album data
-            click.echo(f"Fetching album {resource_id}...")
-            album_data = client.get_album(resource_id)
-            # Set Dolby logo flag if requested
-            album_data.show_dolby_logo = dolby_logo
-            click.echo(f"  Found: {album_data.artist} - {album_data.title}")
-            albums.append(album_data)
+                # Extract and fetch first album
+                resource_type1, resource_id1 = NavidromeClient.extract_id_from_url(url1)
+                if resource_type1 != "album":
+                    click.echo(f"Error: First URL in pair is for a {resource_type1}, not an album.", err=True)
+                    raise SystemExit(1)
+
+                click.echo(f"Fetching first album of double album: {resource_id1}...")
+                album1_data = client.get_album(resource_id1)
+                album1_data.show_dolby_logo = dolby_logo
+                click.echo(f"  Found: {album1_data.artist} - {album1_data.title}")
+
+                if first_album is None:
+                    first_album = album1_data
+
+                # Extract and fetch second album
+                resource_type2, resource_id2 = NavidromeClient.extract_id_from_url(url2)
+                if resource_type2 != "album":
+                    click.echo(f"Error: Second URL in pair is for a {resource_type2}, not an album.", err=True)
+                    raise SystemExit(1)
+
+                click.echo(f"Fetching second album of double album: {resource_id2}...")
+                album2_data = client.get_album(resource_id2)
+                album2_data.show_dolby_logo = dolby_logo
+                click.echo(f"  Found: {album2_data.artist} - {album2_data.title}")
+
+                double_album_pairs.append((album1_data, album2_data))
+            else:
+                # Single album
+                resource_type, resource_id = NavidromeClient.extract_id_from_url(url)
+
+                if resource_type != "album":
+                    click.echo(f"Error: URL is for a {resource_type}, not an album. Use `cardgen playlist` instead.", err=True)
+                    raise SystemExit(1)
+
+                # Fetch album data
+                click.echo(f"Fetching album {resource_id}...")
+                album_data = client.get_album(resource_id)
+                # Set Dolby logo flag if requested
+                album_data.show_dolby_logo = dolby_logo
+                click.echo(f"  Found: {album_data.artist} - {album_data.title}")
+
+                if first_album is None:
+                    first_album = album_data
+
+                albums.append(album_data)
 
         # Determine output path
         if output is None:
@@ -157,13 +207,14 @@ def album(
             # Use first album for filename
             output_filename = format_output_name(
                 template,
-                albums[0].artist,
-                albums[0].title,
-                albums[0].year,
+                first_album.artist,
+                first_album.title,
+                first_album.year,
             )
-            # If multiple albums, add suffix
-            if len(albums) > 1:
-                output_filename = output_filename.replace(".pdf", f"_and_{len(albums)-1}_more.pdf")
+            # If multiple cards total, add suffix
+            total_cards = len(albums) + len(double_album_pairs)
+            if total_cards > 1:
+                output_filename = output_filename.replace(".pdf", f"_and_{total_cards-1}_more.pdf")
             output = Path(output_filename)
 
         # Select card type (default to jcard_5panel)
@@ -212,6 +263,8 @@ def album(
 
         # Create cards for each album
         cards = []
+
+        # Create single album cards
         for album_data in albums:
             # Create AlbumArt object from cover art bytes
             album_art_obj = AlbumArt(album_data.cover_art)
@@ -223,6 +276,23 @@ def album(
 
             # Create card using builder function (handles gradient extraction, font registration, etc.)
             card = create_card_from_album(album_data, album_art_obj, card_class, theme)
+            cards.append(card)
+
+        # Create double album cards
+        for album1_data, album2_data in double_album_pairs:
+            # Create AlbumArt objects
+            album_art1 = AlbumArt(album1_data.cover_art)
+            album_art2 = AlbumArt(album2_data.cover_art)
+
+            # Show gradient info if enabled (uses first album's art)
+            if gradient:
+                click.echo(f"  Extracting color palette from first album art...")
+                click.echo(f"  Using gradient colors at indices {gradient_indices[0]} and {gradient_indices[1]}")
+
+            # Create double album card
+            card = create_double_album_card_from_albums(
+                album1_data, album2_data, album_art1, album_art2, theme
+            )
             cards.append(card)
 
         # Render PDF with defaults or CLI overrides

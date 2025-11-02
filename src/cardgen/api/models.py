@@ -12,7 +12,7 @@ class Track:
     track_number: int
     artist: str | None = None
     album: str | None = None
-    side: str | None = None  # "A", "B", or None if not assigned yet
+    side: str | None = None
 
     def format_duration(self) -> str:
         """
@@ -24,6 +24,7 @@ class Track:
         minutes = self.duration // 60
         seconds = self.duration % 60
         return f"{minutes}:{seconds:02d}"
+
 
 
 @dataclass

@@ -5,10 +5,12 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from cardgen.api.models import Album
+from cardgen.types import SizeStyle
 from cardgen.utils.dimensions import Dimensions
 
+from reportlab.pdfgen import canvas
+
 if TYPE_CHECKING:
-    from reportlab.pdfgen import canvas
     from cardgen.config import Theme
 
 
@@ -16,7 +18,7 @@ if TYPE_CHECKING:
 class RendererContext:
     """Context passed to section renderers."""
 
-    canvas: "canvas.Canvas"  # type: ignore
+    canvas: canvas.Canvas  # type: ignore
     x: float  # X position in points
     y: float  # Y position in points
     width: float  # Width in points
@@ -29,16 +31,18 @@ class RendererContext:
 class CardSection(ABC):
     """Base class for card sections."""
 
-    def __init__(self, name: str, dimensions: Dimensions) -> None:
+    def __init__(self, name: str, dimensions: Dimensions, size_style: SizeStyle = "full") -> None:
         """
         Initialize card section.
 
         Args:
             name: Section name (e.g., "front", "inside", "spine").
             dimensions: Section dimensions.
+            size_style: Size style - "full" or "compact" (default: "full").
         """
         self.name = name
         self.dimensions = dimensions
+        self.size_style = size_style
 
     @abstractmethod
     def render(self, context: RendererContext) -> None:

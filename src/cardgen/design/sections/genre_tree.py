@@ -78,7 +78,7 @@ class GenreTreeSection(CardSection):
                     text=genre_name,
                     point_size=self.font_size,
                     leading_ratio=0.4,
-                    fixed_size=True,  # Don't reduce or wrap ASCII art
+                    fixed_size=False,  # Don't reduce or wrap ASCII art
                     font_family=context.theme.font_family,
                     prefix=prefix  # Tree chars stay monospace, won't compress
                 ))
@@ -88,7 +88,7 @@ class GenreTreeSection(CardSection):
                     text=genre_line,
                     point_size=self.font_size,
                     leading_ratio=0.4,
-                    fixed_size=True,
+                    fixed_size=False,
                     font_family=context.theme.font_family
                 ))
 
@@ -107,7 +107,7 @@ class GenreTreeSection(CardSection):
         Args:
             context: Rendering context.
             fitted_lines: Fitted Line objects from fit_text_block.
-            start_y: Starting y position (top of text area).
+            start_y: Starting y position (top of text area, relative to section origin).
             padding: Horizontal padding.
         """
         c = context.canvas
@@ -131,24 +131,24 @@ class GenreTreeSection(CardSection):
             # Draw prefix (tree characters - monospace, never compressed)
             if fitted_line.prefix:
                 c.setFont(prefix_font, fitted_line.point_size)
-                c.drawString(context.x + padding, text_y, fitted_line.prefix)
+                c.drawString(padding, text_y, fitted_line.prefix)
 
             # Draw text (genre name - proportional font, can be compressed)
             c.setFont(fitted_line.font_family, fitted_line.point_size)
             if fitted_line.horizontal_scale < 1.0:
                 c.saveState()
-                c.translate(context.x + padding + prefix_width, text_y)
+                c.translate(padding + prefix_width, text_y)
                 c.scale(fitted_line.horizontal_scale, 1.0)
                 c.drawString(0, 0, fitted_line.text)
                 c.restoreState()
             else:
-                c.drawString(context.x + padding + prefix_width, text_y, fitted_line.text)
+                c.drawString(padding + prefix_width, text_y, fitted_line.text)
 
             # Draw suffix if present (though genre tree typically doesn't have suffixes)
             if fitted_line.suffix:
                 suffix_width = c.stringWidth(fitted_line.suffix, suffix_font, fitted_line.point_size)
                 available_width = context.width - (padding * 2)
-                suffix_x = context.x + padding + available_width - suffix_width
+                suffix_x = padding + available_width - suffix_width
                 c.setFont(suffix_font, fitted_line.point_size)
                 c.drawString(suffix_x, text_y, fitted_line.suffix)
 
@@ -158,6 +158,10 @@ class GenreTreeSection(CardSection):
     def render(self, context: RendererContext) -> None:
         """Render genre tree using fit_text_block."""
         c = context.canvas
+
+        # Establish local coordinate system
+        c.saveState()
+        c.translate(context.x, context.y)
 
         # Use custom padding if provided, otherwise use larger padding for genre panel
         if self.padding_override is not None:
@@ -178,11 +182,13 @@ class GenreTreeSection(CardSection):
             c, lines, context,
             max_width=available_width,
             max_height=available_height,
-            min_horizontal_scale=0.7,
+            min_horizontal_scale=0.6,
             split_max=1,
             min_point_size=5.0
         )
 
-        # Render fitted lines
-        start_y = context.y + context.height - padding - fitted_lines[0].point_size
+        # Render fitted lines (using relative coordinates now)
+        start_y = context.height - padding - fitted_lines[0].point_size
         self._render_fitted_lines(context, fitted_lines, start_y, padding)
+
+        c.restoreState()

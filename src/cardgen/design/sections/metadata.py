@@ -121,7 +121,8 @@ class MetadataSection(CardSection):
             # First genre gets "Genre: " prefix
             left_text_lines.append(f"Genre: {leaf_genres[0]}")
             # Subsequent genres are indented to align with first genre
-            for genre in leaf_genres[1:]:
+            # limit to three additional genres
+            for genre in leaf_genres[1:4]:
                 left_text_lines.append(f"            {genre}")
 
         # Right column: Album metadata

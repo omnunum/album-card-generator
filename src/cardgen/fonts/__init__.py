@@ -13,6 +13,10 @@ logger = logging.getLogger(__name__)
 
 FONTS_DIR = Path(__file__).parent
 
+# Font path registry: maps registered font names to their file paths
+# This is needed for text measurement using HarfBuzz/FreeType
+_FONT_PATHS: dict[str, Path] = {}
+
 
 def register_fonts() -> None:
     """
@@ -38,6 +42,7 @@ def register_fonts() -> None:
         if font_path.exists():
             try:
                 pdfmetrics.registerFont(TTFont(font_name, str(font_path)))
+                _FONT_PATHS[font_name] = font_path
                 logger.info(f"Registered font: {font_name} from {font_file}")
             except Exception as e:
                 logger.warning(
@@ -99,8 +104,23 @@ def register_google_font(family: str, weight: int = 400) -> Optional[str]:
     # Register with ReportLab
     try:
         pdfmetrics.registerFont(TTFont(font_name, str(font_path)))
+        _FONT_PATHS[font_name] = font_path
         logger.info(f"Registered Google Font: {font_name}")
         return font_name
     except Exception as e:
         logger.error(f"Failed to register Google Font {font_name}: {e}")
         return None
+
+
+def get_font_path(font_name: str) -> Optional[Path]:
+    """
+    Get the file path for a registered font.
+
+    Args:
+        font_name: Registered font name (e.g., "Iosevka", "Orbitron-700").
+
+    Returns:
+        Path to the font file, or None if font path is not tracked.
+        Note: PDF built-in fonts (Helvetica, Courier, etc.) won't have paths.
+    """
+    return _FONT_PATHS.get(font_name)

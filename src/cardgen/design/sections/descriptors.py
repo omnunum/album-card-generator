@@ -48,8 +48,17 @@ class DescriptorsSection(CardSection):
 
         # Add descriptors
         if self.album.rym_descriptors:
+            # Header line (bold, fixed size)
+            lines.append(Line(
+                text="Descriptors:",
+                point_size=self.font_size,
+                leading_ratio=0.4,
+                fixed_size=True,  # Don't reduce header
+                font_family=f"{context.theme.font_family}-Bold"
+            ))
+
             # Descriptors text (can wrap and compress)
-            descriptor_text = "Descriptors: " + ", ".join(self.album.rym_descriptors)
+            descriptor_text = ", ".join(self.album.rym_descriptors)
             lines.append(Line(
                 text=descriptor_text,
                 point_size=self.font_size,
@@ -73,7 +82,7 @@ class DescriptorsSection(CardSection):
         Args:
             context: Rendering context.
             fitted_lines: Fitted Line objects from fit_text_block.
-            start_y: Starting y position (top of text area).
+            start_y: Starting y position (top of text area, relative to section origin).
             padding: Horizontal padding.
         """
         c = context.canvas
@@ -91,12 +100,12 @@ class DescriptorsSection(CardSection):
             c.setFont(fitted_line.font_family, fitted_line.point_size)
             if fitted_line.horizontal_scale < 1.0:
                 c.saveState()
-                c.translate(context.x + padding, text_y)
+                c.translate(padding, text_y)
                 c.scale(fitted_line.horizontal_scale, 1.0)
                 c.drawString(0, 0, fitted_line.text)
                 c.restoreState()
             else:
-                c.drawString(context.x + padding, text_y, fitted_line.text)
+                c.drawString(padding, text_y, fitted_line.text)
 
             # Move down for next line
             text_y -= fitted_line.point_size + (fitted_line.point_size * fitted_line.leading_ratio)
@@ -104,6 +113,10 @@ class DescriptorsSection(CardSection):
     def render(self, context: RendererContext) -> None:
         """Render descriptors using fit_text_block."""
         c = context.canvas
+
+        # Establish local coordinate system
+        c.saveState()
+        c.translate(context.x, context.y)
 
         # Use custom padding if provided, otherwise use larger padding for genre panel
         if self.padding_override is not None:
@@ -121,6 +134,7 @@ class DescriptorsSection(CardSection):
 
         # If no descriptors, nothing to render
         if not lines:
+            c.restoreState()
             return
 
         # Fit all text within constraints
@@ -134,6 +148,8 @@ class DescriptorsSection(CardSection):
             min_point_size=5.0
         )
 
-        # Render fitted lines
-        start_y = context.y + context.height - padding - fitted_lines[0].point_size
+        # Render fitted lines (using relative coordinates now)
+        start_y = context.height - padding - fitted_lines[0].point_size
         self._render_fitted_lines(context, fitted_lines, start_y, padding)
+
+        c.restoreState()

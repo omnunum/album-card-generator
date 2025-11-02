@@ -85,12 +85,6 @@ class JCard5Panel(Card):
         )
 
         # Panel 2: Spine (Artist, Title, Year - all bold)
-        spine_items: list[str] = []
-        spine_items.append(self.album.artist)
-        spine_items.append(self.album.title)
-        if self.album.year:
-            spine_items.append(str(self.album.year))
-
         sections.append(
             SpineSection(
                 name="spine",
@@ -100,8 +94,8 @@ class JCard5Panel(Card):
                     x=panel_2_x,
                     y=0.0
                 ),
-                text_lines=spine_items,
-                album_art=self.album_art,
+                text_lines=[" • ".join([self.album.artist, self.album.title, str(self.album.year)])],
+                album_art_right=self.album_art,
                 show_dolby_logo=self.album.show_dolby_logo,
             )
         )

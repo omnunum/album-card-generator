@@ -74,9 +74,9 @@ def assign_tape_sides(tracks: list[Track], tape_length_minutes: int = 90) -> int
 
     # Assign Side B to remaining tracks
     side_b_duration = 0
-    for i in range(split_index, len(tracks)):
+    for i, track in enumerate(tracks[split_index:], start=split_index):
         tracks[i].side = "B"
-        side_b_duration += tracks[i].duration
+        side_b_duration += track.duration
 
     # Validate Side B doesn't exceed capacity
     if side_b_duration > side_capacity_seconds:
@@ -109,17 +109,17 @@ def split_tracks_by_tape_sides(tracks: list[Track], tape_length_minutes: int = 9
     Raises:
         ValueError: If any single track exceeds side capacity or total duration exceeds tape capacity.
     """
-    # Use new function to assign sides
-    side_capacity_seconds = assign_tape_sides(tracks, tape_length_minutes)
+    # Use assign_tape_sides to mutate tracks in place
+    _ = assign_tape_sides(tracks, tape_length_minutes)
 
-    # Build TapeSide objects from assigned tracks
+    # Filter tracks by side
     side_a_tracks = [t for t in tracks if t.side == "A"]
     side_b_tracks = [t for t in tracks if t.side == "B"]
 
     side_a_duration = sum(t.duration for t in side_a_tracks)
     side_b_duration = sum(t.duration for t in side_b_tracks)
 
-    side_a = TapeSide(side="A", tracks=side_a_tracks, total_duration=side_a_duration, max_duration=side_capacity_seconds)
-    side_b = TapeSide(side="B", tracks=side_b_tracks, total_duration=side_b_duration, max_duration=side_capacity_seconds)
+    side_a = TapeSide(side="A", tracks=side_a_tracks, total_duration=side_a_duration, max_duration=tape_length_minutes//2)
+    side_b = TapeSide(side="B", tracks=side_b_tracks, total_duration=side_b_duration, max_duration=tape_length_minutes//2)
 
     return side_a, side_b

@@ -99,10 +99,10 @@ class NavidromeClient:
                     composer_data = raw_tags["composer"]
                     composer = composer_data[0] if isinstance(composer_data, list) and len(composer_data) > 0 else composer_data
                 # Check for RYM descriptors (try singular first for new convention, then plural for old files)
-                if "rym_descriptor" in raw_tags:
-                    rym_descriptors = raw_tags["rym_descriptor"]
-                elif "rym_descriptors" in raw_tags:
-                    rym_descriptors = raw_tags["rym_descriptors"]
+                for tag in ("rym_descriptor", "rym_descriptors", "descriptor", "descriptors"):
+                    if tag in raw_tags:
+                        rym_descriptors = raw_tags[tag]
+
             except Exception:
                 # Silently ignore if raw tags fetch fails
                 pass

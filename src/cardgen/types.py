@@ -13,8 +13,11 @@ Inch = float
 Dimension = Union[Point, Pixel, Inch]
 
 # Cover art display options
-CoverArtMode = Literal["square", "fullscale"]
+CoverArtMode = Literal["square", "fullscale", "compact"]
 CoverArtAlign = Literal["center", "left", "right"]
 
 # Track title overflow options
 TrackTitleOverflow = Literal["truncate", "wrap"]
+
+# Section size styles
+SizeStyle = Literal["full", "compact"]

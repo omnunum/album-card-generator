@@ -1,12 +1,11 @@
 """Metadata section implementation."""
-
-from reportlab.lib.colors import Color
+import re
 
 from cardgen.api.models import Album
 from cardgen.design.base import CardSection, RendererContext
 from cardgen.utils.dimensions import Dimensions, inches_to_points
 from cardgen.utils.genres import get_leaf_genres
-from cardgen.utils.text import Line, fit_text_block
+from cardgen.utils.text import Line, fit_text_block, render_fitted_lines_with_prefix_suffix
 
 
 class MetadataSection(CardSection):
@@ -50,13 +49,27 @@ class MetadataSection(CardSection):
         """
         lines: list[Line] = []
         for text in text_lines:
-            lines.append(Line(
-                text=text,
-                point_size=self.font_size,
-                leading_ratio=0.25,  # 25% line spacing (same as tracklist)
-                fixed_size=False,  # Allow size reduction
-                font_family=context.theme.font_family
-            ))
+            match = re.match(r'^(\s+)?(.+)$', text)
+            if match:
+                prefix = match.group(1) or ""  # Tree characters (monospace)
+                genre_name = match.group(2)    # Genre name (proportional font)
+
+                lines.append(Line(
+                    prefix=prefix,
+                    text=genre_name,
+                    point_size=self.font_size,
+                    leading_ratio=0.25,  # 25% line spacing (same as tracklist)
+                    fixed_size=False,  # Allow size reduction
+                    font_family=context.theme.font_family
+                ))
+            else:
+                lines.append(Line(
+                    text=text,
+                    point_size=self.font_size,
+                    leading_ratio=0.25,  # 25% line spacing (same as tracklist)
+                    fixed_size=False,  # Allow size reduction
+                    font_family=context.theme.font_family
+                ))
         return lines
 
     def _render_fitted_column(
@@ -77,31 +90,17 @@ class MetadataSection(CardSection):
             padding: Padding value.
             rotated_width: Width in rotated coordinate system (original height).
         """
-        c = context.canvas
-
         # Start from top of rotated space
         y_start = rotated_width - padding
         if fitted_lines:
             y_start -= fitted_lines[0].point_size
 
-        text_y = y_start
+        # Available width for the column in rotated coordinates
+        available_width = (context.height / 2) - (2 * padding)
 
-        for fitted_line in fitted_lines:
-            c.setFont(fitted_line.font_family, fitted_line.point_size)
-            c.setFillColor(Color(*context.theme.effective_text_color))
-
-            # Draw text with horizontal scaling if needed
-            if fitted_line.horizontal_scale < 1.0:
-                c.saveState()
-                c.translate(x_offset, text_y)
-                c.scale(fitted_line.horizontal_scale, 1.0)
-                c.drawString(0, 0, fitted_line.text)
-                c.restoreState()
-            else:
-                c.drawString(x_offset, text_y, fitted_line.text)
-
-            # Move down for next line
-            text_y -= fitted_line.point_size + (fitted_line.point_size * fitted_line.leading_ratio)
+        render_fitted_lines_with_prefix_suffix(
+            fitted_lines, context.canvas, context, y_start, x_offset, available_width
+        )
 
     def render(self, context: RendererContext) -> None:
         """Render metadata content as two columns of vertical text (rotated 90 degrees)."""
@@ -123,7 +122,7 @@ class MetadataSection(CardSection):
             # Subsequent genres are indented to align with first genre
             # limit to three additional genres
             for genre in leaf_genres[1:4]:
-                left_text_lines.append(f"            {genre}")
+                left_text_lines.append(f"  {genre}")
 
         # Right column: Album metadata
         right_text_lines : list[str] = []

@@ -1,13 +1,12 @@
 """Genre tree section implementation."""
 
 import re
-from reportlab.lib.colors import Color
 
 from cardgen.api.models import Album
 from cardgen.design.base import CardSection, RendererContext
 from cardgen.utils.dimensions import Dimensions, inches_to_points
 from cardgen.utils.genres import build_genre_tree
-from cardgen.utils.text import Line, fit_text_block
+from cardgen.utils.text import Line, fit_text_block, render_fitted_lines_with_prefix_suffix
 
 
 class GenreTreeSection(CardSection):
@@ -110,50 +109,10 @@ class GenreTreeSection(CardSection):
             start_y: Starting y position (top of text area, relative to section origin).
             padding: Horizontal padding.
         """
-        c = context.canvas
-        text_y = start_y
-
-        for fitted_line in fitted_lines:
-            # Skip empty lines (spacing)
-            if not fitted_line.text:
-                text_y -= fitted_line.point_size + (fitted_line.point_size * fitted_line.leading_ratio)
-                continue
-
-            c.setFillColor(Color(*context.theme.effective_text_color))
-
-            # Get fonts for prefix/suffix
-            prefix_font = fitted_line.prefix_font or context.theme.monospace_family
-            suffix_font = fitted_line.suffix_font or context.theme.monospace_family
-
-            # Calculate prefix width
-            prefix_width = c.stringWidth(fitted_line.prefix, prefix_font, fitted_line.point_size) if fitted_line.prefix else 0
-
-            # Draw prefix (tree characters - monospace, never compressed)
-            if fitted_line.prefix:
-                c.setFont(prefix_font, fitted_line.point_size)
-                c.drawString(padding, text_y, fitted_line.prefix)
-
-            # Draw text (genre name - proportional font, can be compressed)
-            c.setFont(fitted_line.font_family, fitted_line.point_size)
-            if fitted_line.horizontal_scale < 1.0:
-                c.saveState()
-                c.translate(padding + prefix_width, text_y)
-                c.scale(fitted_line.horizontal_scale, 1.0)
-                c.drawString(0, 0, fitted_line.text)
-                c.restoreState()
-            else:
-                c.drawString(padding + prefix_width, text_y, fitted_line.text)
-
-            # Draw suffix if present (though genre tree typically doesn't have suffixes)
-            if fitted_line.suffix:
-                suffix_width = c.stringWidth(fitted_line.suffix, suffix_font, fitted_line.point_size)
-                available_width = context.width - (padding * 2)
-                suffix_x = padding + available_width - suffix_width
-                c.setFont(suffix_font, fitted_line.point_size)
-                c.drawString(suffix_x, text_y, fitted_line.suffix)
-
-            # Move down for next line
-            text_y -= fitted_line.point_size + (fitted_line.point_size * fitted_line.leading_ratio)
+        available_width = context.width - (padding * 2)
+        render_fitted_lines_with_prefix_suffix(
+            fitted_lines, context.canvas, context, start_y, padding, available_width
+        )
 
     def render(self, context: RendererContext) -> None:
         """Render genre tree using fit_text_block."""

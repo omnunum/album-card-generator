@@ -490,3 +490,78 @@ def fit_text_block(
         if not size_changed:
             _populate_adjusted_point_sizes(processed_lines)
             return processed_lines
+
+
+def render_fitted_lines_with_prefix_suffix(
+    fitted_lines: List[Line],
+    canvas: Canvas,
+    context: RendererContext,
+    start_y: float,
+    padding: float,
+    available_width: float
+) -> float:
+    """
+    Render fitted text lines with monospace prefix, resizable middle text, and monospace suffix.
+
+    This function handles drawing lines where:
+    - Prefix is drawn in monospace font (never compressed)
+    - Main text can be horizontally scaled for fitting
+    - Suffix is drawn in monospace font (right-aligned, never compressed)
+
+    Args:
+        fitted_lines: List of fitted Line objects from fit_text_block.
+        canvas: ReportLab canvas for drawing.
+        context: Rendering context with theme information.
+        start_y: Starting Y position for the first line.
+        padding: Horizontal padding from the edges.
+        available_width: Total available width for the text area.
+
+    Returns:
+        Final Y position after drawing all lines.
+    """
+    from reportlab.lib.colors import Color
+
+    text_y = start_y
+
+    for fitted_line in fitted_lines:
+        # Skip empty lines (spacing)
+        if not fitted_line.text:
+            text_y -= fitted_line.point_size + (fitted_line.point_size * fitted_line.leading_ratio)
+            continue
+
+        canvas.setFillColor(Color(*context.theme.effective_text_color))
+
+        # Get fonts for prefix/suffix
+        prefix_font = fitted_line.prefix_font or context.theme.monospace_family
+        suffix_font = fitted_line.suffix_font or context.theme.monospace_family
+
+        # Calculate prefix width
+        prefix_width = canvas.stringWidth(fitted_line.prefix, prefix_font, fitted_line.point_size) if fitted_line.prefix else 0
+
+        # Draw prefix (monospace, never compressed)
+        if fitted_line.prefix:
+            canvas.setFont(prefix_font, fitted_line.point_size)
+            canvas.drawString(padding, text_y, fitted_line.prefix)
+
+        # Draw text (proportional font, can be compressed)
+        canvas.setFont(fitted_line.font_family, fitted_line.point_size)
+        if fitted_line.horizontal_scale < 1.0:
+            canvas.saveState()
+            canvas.translate(padding + prefix_width, text_y)
+            canvas.scale(fitted_line.horizontal_scale, 1.0)
+            canvas.drawString(0, 0, fitted_line.text)
+            canvas.restoreState()
+        else:
+            canvas.drawString(padding + prefix_width, text_y, fitted_line.text)
+
+        # Draw suffix if present (right-aligned)
+        if fitted_line.suffix:
+            suffix_width = canvas.stringWidth(fitted_line.suffix, suffix_font, fitted_line.point_size)
+            suffix_x = padding + available_width - suffix_width
+            canvas.setFont(suffix_font, fitted_line.point_size)
+            canvas.drawString(suffix_x, text_y, fitted_line.suffix)
+
+        # Move down for next line
+        text_y -= fitted_line.point_size + (fitted_line.point_size * fitted_line.leading_ratio)
+
+    return text_y

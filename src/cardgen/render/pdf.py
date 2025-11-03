@@ -59,10 +59,6 @@ class PDFRenderer:
         # Center card on page
         offset_x, offset_y = center_on_page(card_dims.width, card_dims.height, self.page_width, self.page_height)
 
-        # Draw crop marks and fold guides if enabled
-        if self.include_crop_marks:
-            self._draw_guides(c, card_dims, offset_x, offset_y, card.get_fold_lines())
-
         # Draw each section
         sections = card.get_sections()
         for section in sections:
@@ -71,6 +67,10 @@ class PDFRenderer:
         # Draw color palette legend if available
         if card.theme.color_palette:
             self._draw_color_palette(c, card.theme.color_palette, card_dims, offset_x, offset_y)
+
+        # Draw crop marks and fold guides on top of everything
+        if self.include_crop_marks:
+            self._draw_guides(c, card_dims, offset_x, offset_y, card.get_fold_lines())
 
         # Save PDF
         c.save()
@@ -106,18 +106,15 @@ class PDFRenderer:
                 # Align to top of slot with small margin
                 offset_y = slot_y + half_page_height - card_dims.height - 0.125  # 0.125" top margin
 
-                # Draw crop marks and fold guides if enabled
-                if self.include_crop_marks:
-                    self._draw_guides(c, card_dims, offset_x, offset_y, card.get_fold_lines())
-
                 # Draw gradient background if enabled
                 if card.theme.use_gradient and card.theme.gradient_start and card.theme.gradient_end:
-                    # Need to offset card_dims for proper positioning on page
+                    # Add 1/16" bleed on all sides to prevent white edges when cutting
+                    bleed = 0.0625  # 1/16"
                     gradient_dims = Dimensions(
-                        width=card_dims.width,
-                        height=card_dims.height,
-                        x=offset_x,
-                        y=offset_y,
+                        width=card_dims.width + (2 * bleed),  # Extend left and right
+                        height=card_dims.height + (2 * bleed),  # Extend top and bottom
+                        x=offset_x - bleed,  # Shift left to center the extension
+                        y=offset_y - bleed,  # Shift down to center the extension
                         dpi=self.dpi
                     )
                     self._draw_gradient_background(
@@ -132,6 +129,10 @@ class PDFRenderer:
                 # Draw color palette legend if available
                 if card.theme.color_palette:
                     self._draw_color_palette(c, card.theme.color_palette, card_dims, offset_x, offset_y)
+
+                # Draw crop marks and fold guides on top of everything
+                if self.include_crop_marks:
+                    self._draw_guides(c, card_dims, offset_x, offset_y, card.get_fold_lines())
 
             # Start new page if there are more cards
             if page_idx + 2 < len(cards):
@@ -307,7 +308,7 @@ class PDFRenderer:
     ) -> None:
         """Draw crop marks and fold guides."""
         c.setStrokeColor(gray)
-        c.setLineWidth(0.25)
+        c.setLineWidth(1.0)
         c.setDash(1, 2)
 
         # Create positioned card dimensions

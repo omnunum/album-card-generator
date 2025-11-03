@@ -36,7 +36,7 @@ class Line:
         point_size: Font size in points.
         adjusted_point_size: Size in points of the tallest glyph in the text at the nominal point_size
         leading_ratio: Multiplier for leading (vertical space between baselines) relative to point_size.
-        horizontal_scale: Character width scale (1.0 = 100%, 0.8 = 80% condensed).
+        horizontal_scale: Character width scale for main text (1.0 = 100%, 0.8 = 80% condensed).
         fixed_size: If True, point_size is never reduced during fitting iterations (for fixed-height elements).
         track: Reference to the original Track object (if this line represents a track).
         font_family: Font family name for this line (e.g., "Helvetica", "Helvetica-Bold", "Courier").
@@ -44,6 +44,8 @@ class Line:
         suffix: Text after main content (durations, etc.). Defaults to monospace font.
         prefix_font: Font family for prefix. None means use default monospace from context.
         suffix_font: Font family for suffix. None means use default monospace from context.
+        prefix_horizontal_scale: Character width scale for prefix (1.0 = 100%, 0.8 = 80% condensed).
+        suffix_horizontal_scale: Character width scale for suffix (1.0 = 100%, 0.8 = 80% condensed).
     """
     text: str
     point_size: float = 16.0
@@ -57,6 +59,8 @@ class Line:
     suffix: str = ""
     prefix_font: str | None = None
     suffix_font: str | None = None
+    prefix_horizontal_scale: float = 1.0
+    suffix_horizontal_scale: float = 1.0
 
     def __post_init__(self):
         """Initialize adjusted_point_size with fallback if not explicitly set."""
@@ -290,12 +294,12 @@ def _process_lines_at_current_size(
 
     # Process each line independently
     for line in lines:
-        # Calculate effective width for text content (accounting for prefix/suffix)
+        # Calculate effective width for text content (accounting for prefix/suffix with their scaling)
         prefix_font = line.prefix_font or context.theme.monospace_family
         suffix_font = line.suffix_font or context.theme.monospace_family
 
-        prefix_width = canvas.stringWidth(line.prefix, prefix_font, line.point_size) if line.prefix else 0
-        suffix_width = canvas.stringWidth(line.suffix, suffix_font, line.point_size) if line.suffix else 0
+        prefix_width = (canvas.stringWidth(line.prefix, prefix_font, line.point_size) * line.prefix_horizontal_scale) if line.prefix else 0
+        suffix_width = (canvas.stringWidth(line.suffix, suffix_font, line.point_size) * line.suffix_horizontal_scale) if line.suffix else 0
         effective_width = max_width - prefix_width - suffix_width
 
         base_width = canvas.stringWidth(line.text, line.font_family, line.point_size)
@@ -313,7 +317,9 @@ def _process_lines_at_current_size(
                 prefix=line.prefix,
                 suffix=line.suffix,
                 prefix_font=line.prefix_font,
-                suffix_font=line.suffix_font
+                suffix_font=line.suffix_font,
+                prefix_horizontal_scale=line.prefix_horizontal_scale,
+                suffix_horizontal_scale=line.suffix_horizontal_scale
             ))
         else:
             # Calculate needed compression
@@ -332,7 +338,9 @@ def _process_lines_at_current_size(
                     prefix=line.prefix,
                     suffix=line.suffix,
                     prefix_font=line.prefix_font,
-                    suffix_font=line.suffix_font
+                    suffix_font=line.suffix_font,
+                    prefix_horizontal_scale=line.prefix_horizontal_scale,
+                    suffix_horizontal_scale=line.suffix_horizontal_scale
                 ))
             else:
                 # Compression too extreme - try splitting
@@ -373,7 +381,9 @@ def _process_lines_at_current_size(
                         prefix=line.prefix,
                         suffix=line.suffix,
                         prefix_font=line.prefix_font,
-                        suffix_font=line.suffix_font
+                        suffix_font=line.suffix_font,
+                        prefix_horizontal_scale=line.prefix_horizontal_scale,
+                        suffix_horizontal_scale=line.suffix_horizontal_scale
                     ))
 
     return processed_lines
@@ -426,7 +436,8 @@ def fit_text_block(
     min_horizontal_scale: float = 0.7,
     split_max: int = 1,
     size_reduction_ratio: float = 0.984375,  # ~0.25pt reduction on 16pt font
-    min_point_size: float = 6.0
+    min_point_size: float = 6.0,
+    glyph_height_adjusted: bool = False
 ) -> List[Line]:
     """
     Fit a block of text lines within width and height constraints.
@@ -449,6 +460,7 @@ def fit_text_block(
         split_max: Maximum times a line can be split (default: 1 = max 2 lines per input line).
         size_reduction_ratio: Multiplicative factor for reducing font size each iteration (default: 0.984375).
         min_point_size: Minimum point size allowed (default: 6.0).
+        glyph_height_adjusted: Use the size of the max height of the glyph instead of point size.
 
     Returns:
         List of fitted Line objects with final text, point_size, leading_ratio, font_family, and horizontal_scale.
@@ -464,7 +476,7 @@ def fit_text_block(
         )
 
         # Calculate total height
-        total_height = calculate_total_height(processed_lines)
+        total_height = calculate_total_height(processed_lines, adjusted=glyph_height_adjusted)
 
         # Check if we fit within vertical constraints
         if total_height <= max_height:
@@ -526,7 +538,7 @@ def render_fitted_lines_with_prefix_suffix(
     for fitted_line in fitted_lines:
         # Skip empty lines (spacing)
         if not fitted_line.text:
-            text_y -= fitted_line.point_size + (fitted_line.point_size * fitted_line.leading_ratio)
+            text_y -= fitted_line.adjusted_point_size + (fitted_line.point_size * fitted_line.leading_ratio)
             continue
 
         canvas.setFillColor(Color(*context.theme.effective_text_color))
@@ -535,13 +547,20 @@ def render_fitted_lines_with_prefix_suffix(
         prefix_font = fitted_line.prefix_font or context.theme.monospace_family
         suffix_font = fitted_line.suffix_font or context.theme.monospace_family
 
-        # Calculate prefix width
-        prefix_width = canvas.stringWidth(fitted_line.prefix, prefix_font, fitted_line.point_size) if fitted_line.prefix else 0
+        # Calculate prefix width (accounting for scaling)
+        prefix_width = (canvas.stringWidth(fitted_line.prefix, prefix_font, fitted_line.point_size) * fitted_line.prefix_horizontal_scale) if fitted_line.prefix else 0
 
-        # Draw prefix (monospace, never compressed)
+        # Draw prefix (monospace, can be compressed)
         if fitted_line.prefix:
             canvas.setFont(prefix_font, fitted_line.point_size)
-            canvas.drawString(padding, text_y, fitted_line.prefix)
+            if fitted_line.prefix_horizontal_scale < 1.0:
+                canvas.saveState()
+                canvas.translate(padding, text_y)
+                canvas.scale(fitted_line.prefix_horizontal_scale, 1.0)
+                canvas.drawString(0, 0, fitted_line.prefix)
+                canvas.restoreState()
+            else:
+                canvas.drawString(padding, text_y, fitted_line.prefix)
 
         # Draw text (proportional font, can be compressed)
         canvas.setFont(fitted_line.font_family, fitted_line.point_size)
@@ -554,12 +573,19 @@ def render_fitted_lines_with_prefix_suffix(
         else:
             canvas.drawString(padding + prefix_width, text_y, fitted_line.text)
 
-        # Draw suffix if present (right-aligned)
+        # Draw suffix if present (right-aligned, can be compressed)
         if fitted_line.suffix:
-            suffix_width = canvas.stringWidth(fitted_line.suffix, suffix_font, fitted_line.point_size)
+            suffix_width = canvas.stringWidth(fitted_line.suffix, suffix_font, fitted_line.point_size) * fitted_line.suffix_horizontal_scale
             suffix_x = padding + available_width - suffix_width
             canvas.setFont(suffix_font, fitted_line.point_size)
-            canvas.drawString(suffix_x, text_y, fitted_line.suffix)
+            if fitted_line.suffix_horizontal_scale < 1.0:
+                canvas.saveState()
+                canvas.translate(suffix_x, text_y)
+                canvas.scale(fitted_line.suffix_horizontal_scale, 1.0)
+                canvas.drawString(0, 0, fitted_line.suffix)
+                canvas.restoreState()
+            else:
+                canvas.drawString(suffix_x, text_y, fitted_line.suffix)
 
         # Move down for next line
         text_y -= fitted_line.point_size + (fitted_line.point_size * fitted_line.leading_ratio)

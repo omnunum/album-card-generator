@@ -79,7 +79,8 @@ class GenreTreeSection(CardSection):
                     leading_ratio=0.4,
                     fixed_size=False,  # Don't reduce or wrap ASCII art
                     font_family=context.theme.font_family,
-                    prefix=prefix  # Tree chars stay monospace, won't compress
+                    prefix=prefix,  # Tree chars stay monospace, won't compress
+                    prefix_horizontal_scale=0.7
                 ))
             else:
                 # Fallback: treat entire line as text

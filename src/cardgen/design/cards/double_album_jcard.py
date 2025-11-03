@@ -104,14 +104,14 @@ class DoubleAlbumJCard(Card):
             name="metadata_album1",
             dimensions=Dimensions(width=0, height=0, x=0, y=0),  # Will be set by container
             album=self.album1,
-            font_size=9.0,
+            font_size=8.0,
             padding_override=1/32
         )
         metadata2 = MetadataSection(
             name="metadata_album2",
             dimensions=Dimensions(width=0, height=0, x=0, y=0),  # Will be set by container
             album=self.album2,
-            font_size=9.0,
+            font_size=8.0,
             padding_override=1/32
         )
         sections.append(

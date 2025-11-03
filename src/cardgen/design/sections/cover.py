@@ -12,7 +12,7 @@ from svglib.svglib import svg2rlg
 
 from cardgen.design.base import CardSection, RendererContext
 from cardgen.utils.album_art import AlbumArt
-from cardgen.utils.dimensions import SAFE_MARGIN, Dimensions, inches_to_points
+from cardgen.utils.dimensions import SAFE_MARGIN, Dimensions, inches_to_points, points_to_inches
 from cardgen.utils.text import Line, fit_text_block
 
 
@@ -120,8 +120,6 @@ class CoverSection(CardSection):
 
             # Center the text
             center_x = context.x + context.width / 2
-            if i > 0:
-                text_y -= fitted_line.point_size
             # Draw text with horizontal scaling if needed
             if fitted_line.horizontal_scale < 1.0:
                 c.saveState()
@@ -133,7 +131,7 @@ class CoverSection(CardSection):
                 c.drawCentredString(center_x, text_y, fitted_line.text)
 
             # Move down for next line
-            text_y -= fitted_line.point_size * fitted_line.leading_ratio
+            text_y -= fitted_line.adjusted_point_size + (fitted_line.point_size * fitted_line.leading_ratio)
 
     def render(self, context: RendererContext) -> None:
         """Render front cover with album art and text based on cover_art_mode."""
@@ -213,7 +211,11 @@ class CoverSection(CardSection):
 
         # Render album art (full bleed vertically)
         if self.album_art:
-            art_dims = Dimensions(width=art_width/72, height=context.height/72, dpi=context.dpi)
+            art_dims = Dimensions(
+                width=points_to_inches(art_width), 
+                height=points_to_inches(context.height), 
+                dpi=context.dpi
+            )
             pixel_dims = art_dims.to_pixels()
             processed_img = self.album_art.resize_and_crop(
                 (pixel_dims.width, pixel_dims.height),
@@ -263,11 +265,12 @@ class CoverSection(CardSection):
             max_height=available_text_height,
             min_horizontal_scale=0.75,
             split_max=2,
-            min_point_size=6.0 if context.theme.cover_art_mode == "compact" else 8.0
+            min_point_size=6.0 if context.theme.cover_art_mode == "compact" else 8.0,
+            glyph_height_adjusted=True
         )
 
         # Render fitted lines centered
-        start_y = context.y + context.height - context.padding - fitted_lines[0].point_size
+        start_y = context.y + context.height - context.padding - fitted_lines[0].adjusted_point_size
         self._render_fitted_lines_centered(context, fitted_lines, start_y, available_text_width)
 
         # Skip logos in compact mode (not enough space)

@@ -5,7 +5,7 @@ from cardgen.api.models import Album
 from cardgen.design.base import CardSection, RendererContext
 from cardgen.utils.dimensions import Dimensions, inches_to_points
 from cardgen.utils.genres import get_leaf_genres
-from cardgen.utils.text import Line, fit_text_block, render_fitted_lines_with_prefix_suffix
+from cardgen.utils.text import Line, fit_text_block, TextBounds, render_fitted_text_with_prefix_suffix
 
 
 class MetadataSection(CardSection):
@@ -18,6 +18,7 @@ class MetadataSection(CardSection):
         album: Album,
         font_size: float = 5.0,
         padding_override: float | None = None,
+        leading_ratio: float = 0.33,
     ) -> None:
         """
         Initialize metadata section.
@@ -28,11 +29,14 @@ class MetadataSection(CardSection):
             album: Album object with genres and metadata.
             font_size: Font size in points (default: 5.0).
             padding_override: Custom padding in inches. If None, uses theme default.
+            leading_ratio: Leading ratio for text (default: 0.33).
+                          Updated from 0.25 to account for canonical formula using adjusted_point_size.
         """
         super().__init__(name, dimensions)
         self.album = album
         self.font_size = font_size
         self.padding_override = padding_override
+        self.leading_ratio = leading_ratio
 
     def _build_text_lines_for_column(
         self, context: RendererContext, text_lines: list[str]
@@ -58,7 +62,7 @@ class MetadataSection(CardSection):
                     prefix=prefix,
                     text=genre_name,
                     point_size=self.font_size,
-                    leading_ratio=0.25,  # 25% line spacing (same as tracklist)
+                    leading_ratio=self.leading_ratio,
                     fixed_size=False,  # Allow size reduction
                     font_family=context.theme.font_family
                 ))
@@ -66,7 +70,7 @@ class MetadataSection(CardSection):
                 lines.append(Line(
                     text=text,
                     point_size=self.font_size,
-                    leading_ratio=0.25,  # 25% line spacing (same as tracklist)
+                    leading_ratio=self.leading_ratio,
                     fixed_size=False,  # Allow size reduction
                     font_family=context.theme.font_family
                 ))
@@ -78,7 +82,8 @@ class MetadataSection(CardSection):
         fitted_lines: list[Line],
         x_offset: float,
         padding: float,
-        rotated_width: float
+        rotated_width: float,
+        column_width: float
     ) -> None:
         """
         Render a single column of fitted text (in rotated coordinate system).
@@ -89,28 +94,35 @@ class MetadataSection(CardSection):
             x_offset: X position for the column start.
             padding: Padding value.
             rotated_width: Width in rotated coordinate system (original height).
+            column_width: Width available for the column text.
         """
-        # Start from top of rotated space
-        y_start = rotated_width - padding
-        if fitted_lines:
-            y_start -= fitted_lines[0].point_size
+        # Create TextBounds for this column (in rotated coordinate system)
+        # Note: We're already in a rotated coordinate system, so coordinates are relative
+        bounds = TextBounds(
+            x=x_offset,
+            y=padding,
+            width=column_width,
+            height=rotated_width - (padding * 2)
+        )
 
-        # Available width for the column in rotated coordinates
-        available_width = (context.height / 2) - (2 * padding)
-
-        render_fitted_lines_with_prefix_suffix(
-            fitted_lines, context.canvas, context, y_start, x_offset, available_width
+        # Render using centralized canonical renderer
+        render_fitted_text_with_prefix_suffix(
+            fitted_lines,
+            context.canvas,
+            bounds,
+            context,
+            alignment="left"
         )
 
     def render(self, context: RendererContext) -> None:
         """Render metadata content as two columns of vertical text (rotated 90 degrees)."""
         c = context.canvas
 
-        # Use custom padding if provided, otherwise use theme default
+        # Use custom padding if provided, otherwise use 1/16" for consistent spacing
         if self.padding_override is not None:
-            padding = inches_to_points(self.padding_override)  # Convert inches to points
+            padding = inches_to_points(self.padding_override)
         else:
-            padding = context.padding
+            padding = inches_to_points(1/16)
 
         # Process album data into left and right columns
         # Left column: Leaf genres
@@ -135,15 +147,17 @@ class MetadataSection(CardSection):
 
         # After rotation, available height for text is context.width
         # Available width is context.height (split into two halves for columns)
+        # Padding is applied to the entire section edges, with a gap between columns
         available_height = context.width - (2 * padding)
-        column_width = (context.height / 2) - (2 * padding)
+        column_gap = padding  # Gap between the two columns
+        column_width = (context.height - (2 * padding) - column_gap) / 2
 
         # Save state and set up rotation
         c.saveState()
 
-        # Translate to bottom-left of where rotated content should appear, then rotate
-        c.translate(context.x + context.width - padding, context.y)
-        c.rotate(90)  # 90 degrees counterclockwise
+        # Translate to bottom-right corner, then rotate 90 degrees counterclockwise
+        c.translate(context.x + context.width, context.y)
+        c.rotate(90)
 
         # Now we're in a rotated coordinate system
         # Process and render left column
@@ -157,7 +171,7 @@ class MetadataSection(CardSection):
                 split_max=1,
                 min_point_size=5.0
             )
-            self._render_fitted_column(context, fitted_left, padding, padding, context.width)
+            self._render_fitted_column(context, fitted_left, padding, padding, context.width, column_width)
 
         # Process and render right column
         if right_text_lines:
@@ -170,7 +184,8 @@ class MetadataSection(CardSection):
                 split_max=1,
                 min_point_size=5.0
             )
-            x_right = context.height / 2 + padding
-            self._render_fitted_column(context, fitted_right, x_right, padding, context.width)
+            # Right column starts after left column plus the gap between columns
+            x_right = padding + column_width + column_gap
+            self._render_fitted_column(context, fitted_right, x_right, padding, context.width, column_width)
 
         c.restoreState()

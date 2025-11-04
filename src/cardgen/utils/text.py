@@ -68,6 +68,133 @@ class Line:
             self.adjusted_point_size = self.point_size * 0.75
 
 
+@dataclass
+class TextBounds:
+    """
+    Canonical text rendering boundaries.
+
+    Enforces consistency: fitting and rendering use IDENTICAL bounds.
+    All coordinates are in the current canvas coordinate system (which may be
+    translated or rotated by the section before creating TextBounds).
+
+    Attributes:
+        x: Left edge (with padding already applied)
+        y: Bottom edge (with padding already applied)
+        width: Available width (padding already removed)
+        height: Available height (padding already removed)
+    """
+    x: float
+    y: float
+    width: float
+    height: float
+
+    @classmethod
+    def from_context(cls, context: RendererContext, padding: float) -> "TextBounds":
+        """
+        Create bounds from context with padding applied.
+
+        Use this for sections working in absolute coordinates (no translate/rotate).
+
+        Args:
+            context: Rendering context with position and dimensions
+            padding: Padding to apply on all sides
+
+        Returns:
+            TextBounds with padding applied
+        """
+        return cls(
+            x=context.x + padding,
+            y=context.y + padding,
+            width=context.width - (padding * 2),
+            height=context.height - (padding * 2)
+        )
+
+    @classmethod
+    def from_relative_context(cls, context: RendererContext, padding: float) -> "TextBounds":
+        """
+        Create bounds for sections that use translated coordinates.
+
+        Use this when the section has already called canvas.translate(context.x, context.y),
+        so coordinates are now relative to the section origin.
+
+        Args:
+            context: Rendering context with dimensions
+            padding: Padding to apply on all sides
+
+        Returns:
+            TextBounds with relative coordinates and padding applied
+        """
+        return cls(
+            x=padding,  # Relative to translated origin
+            y=padding,
+            width=context.width - (padding * 2),
+            height=context.height - (padding * 2)
+        )
+
+    def get_start_y(self, first_line: Line) -> float:
+        """
+        Calculate canonical start Y position for top-down rendering.
+
+        Uses adjusted_point_size for accurate positioning based on actual glyph height.
+
+        Args:
+            first_line: The first line to be rendered
+
+        Returns:
+            Y coordinate for the baseline of the first line
+        """
+        return self.y + self.height - first_line.adjusted_point_size
+
+
+def calculate_line_advancement(line: Line) -> float:
+    """
+    Calculate canonical vertical advancement for a line.
+
+    This is the CANONICAL FORMULA used everywhere for consistency.
+    Uses adjusted_point_size for both line height and leading calculation.
+
+    Formula: line_height + leading
+            = adjusted_point_size + (adjusted_point_size × leading_ratio)
+
+    Args:
+        line: Line object with adjusted_point_size and leading_ratio set
+
+    Returns:
+        Vertical distance to advance (in points) to position next line
+    """
+    return line.adjusted_point_size + (line.adjusted_point_size * line.leading_ratio)
+
+
+def calculate_total_text_height(lines: List[Line]) -> float:
+    """
+    Calculate total vertical height using the canonical formula.
+
+    This enforces consistency: uses adjusted_point_size for all calculations.
+
+    Formula:
+    - First line: adjusted_point_size (no leading before it)
+    - Middle lines: adjusted_point_size + (adjusted_point_size × leading_ratio)
+    - Last line: adjusted_point_size (no leading after it)
+
+    Args:
+        lines: List of Line objects with adjusted_point_size populated
+
+    Returns:
+        Total height in points
+    """
+    if not lines:
+        return 0.0
+
+    # First line contributes its adjusted height
+    total = lines[0].adjusted_point_size
+
+    # Add advancement for all lines except the last
+    for line in lines[:-1]:
+        total += calculate_line_advancement(line)
+
+    return total
+
+
 def measure_text_height(text: str, font_family: str, point_size: float) -> float:
     """
     Measure the actual visual height of text using HarfBuzz and FreeType.
@@ -389,23 +516,33 @@ def _process_lines_at_current_size(
     return processed_lines
 
 
-def calculate_total_height(lines: List[Line], adjusted: bool =False) -> float:
+def calculate_total_height(lines: List[Line], adjusted: bool = True) -> float:
     """
     Calculate total vertical height of all lines including leading.
 
+    UPDATED: Now uses canonical formula by default (adjusted=True).
+    When adjusted=True, uses adjusted_point_size for BOTH line height AND leading.
+
     Args:
         lines: List of Line objects.
+        adjusted: Use adjusted_point_size (True) or point_size (False) for calculations.
+                 Default is True for consistency with rendering.
 
     Returns:
         Total height in points.
     """
-    text_content_height : float = sum(
-        (l.point_size if not adjusted else l.adjusted_point_size) + (l.point_size * l.leading_ratio)
-        if i != len(lines) - 1
-        else l.adjusted_point_size
-        for i, l in enumerate(lines)
-    )
-    return text_content_height
+    if adjusted:
+        # Canonical formula: uses adjusted_point_size for both line height and leading
+        return calculate_total_text_height(lines)
+    else:
+        # Legacy formula: uses point_size for both
+        text_content_height: float = sum(
+            l.point_size + (l.point_size * l.leading_ratio)
+            if i != len(lines) - 1
+            else l.point_size
+            for i, l in enumerate(lines)
+        )
+        return text_content_height
 
 
 def _populate_adjusted_point_sizes(lines: List[Line]) -> None:
@@ -437,7 +574,7 @@ def fit_text_block(
     split_max: int = 1,
     size_reduction_ratio: float = 0.984375,  # ~0.25pt reduction on 16pt font
     min_point_size: float = 6.0,
-    glyph_height_adjusted: bool = False
+    glyph_height_adjusted: bool = True
 ) -> List[Line]:
     """
     Fit a block of text lines within width and height constraints.
@@ -460,7 +597,8 @@ def fit_text_block(
         split_max: Maximum times a line can be split (default: 1 = max 2 lines per input line).
         size_reduction_ratio: Multiplicative factor for reducing font size each iteration (default: 0.984375).
         min_point_size: Minimum point size allowed (default: 6.0).
-        glyph_height_adjusted: Use the size of the max height of the glyph instead of point size.
+        glyph_height_adjusted: Use actual glyph height (adjusted_point_size) instead of nominal point_size.
+                              Default is True for consistency with rendering. Set False for legacy behavior.
 
     Returns:
         List of fitted Line objects with final text, point_size, leading_ratio, font_family, and horizontal_scale.
@@ -553,41 +691,262 @@ def render_fitted_lines_with_prefix_suffix(
         # Draw prefix (monospace, can be compressed)
         if fitted_line.prefix:
             canvas.setFont(prefix_font, fitted_line.point_size)
-            if fitted_line.prefix_horizontal_scale < 1.0:
-                canvas.saveState()
-                canvas.translate(padding, text_y)
-                canvas.scale(fitted_line.prefix_horizontal_scale, 1.0)
-                canvas.drawString(0, 0, fitted_line.prefix)
-                canvas.restoreState()
-            else:
-                canvas.drawString(padding, text_y, fitted_line.prefix)
+            canvas.saveState()
+            canvas.translate(padding, text_y)
+            canvas.scale(fitted_line.prefix_horizontal_scale, 1.0)
+            canvas.drawString(0, 0, fitted_line.prefix)
+            canvas.restoreState()
 
         # Draw text (proportional font, can be compressed)
         canvas.setFont(fitted_line.font_family, fitted_line.point_size)
-        if fitted_line.horizontal_scale < 1.0:
-            canvas.saveState()
-            canvas.translate(padding + prefix_width, text_y)
-            canvas.scale(fitted_line.horizontal_scale, 1.0)
-            canvas.drawString(0, 0, fitted_line.text)
-            canvas.restoreState()
-        else:
-            canvas.drawString(padding + prefix_width, text_y, fitted_line.text)
+        canvas.saveState()
+        canvas.translate(padding + prefix_width, text_y)
+        canvas.scale(fitted_line.horizontal_scale, 1.0)
+        canvas.drawString(0, 0, fitted_line.text)
+        canvas.restoreState()
 
         # Draw suffix if present (right-aligned, can be compressed)
         if fitted_line.suffix:
             suffix_width = canvas.stringWidth(fitted_line.suffix, suffix_font, fitted_line.point_size) * fitted_line.suffix_horizontal_scale
             suffix_x = padding + available_width - suffix_width
             canvas.setFont(suffix_font, fitted_line.point_size)
-            if fitted_line.suffix_horizontal_scale < 1.0:
+            canvas.saveState()
+            canvas.translate(suffix_x, text_y)
+            canvas.scale(fitted_line.suffix_horizontal_scale, 1.0)
+            canvas.drawString(0, 0, fitted_line.suffix)
+            canvas.restoreState()
+
+        # Move down for next line
+        text_y -= fitted_line.point_size + (fitted_line.point_size * fitted_line.leading_ratio)
+
+    return text_y
+
+
+# ============================================================================
+# Centralized Canonical Rendering Functions
+# ============================================================================
+
+
+def render_fitted_text(
+    fitted_lines: List[Line],
+    canvas: Canvas,
+    bounds: TextBounds,
+    context: RendererContext,
+    alignment: str = "left",
+    vertical_alignment: str = "top"
+) -> float:
+    """
+    CANONICAL text renderer - enforces consistent formula everywhere.
+
+    This is the centralized rendering function that all sections should use.
+    It enforces the canonical formula:
+    - start_y = top - adjusted_point_size (top-down)
+    - next_y = current_y - adjusted_point_size - (adjusted_point_size × leading_ratio)
+
+    Args:
+        fitted_lines: List of fitted Line objects (must have adjusted_point_size populated)
+        canvas: ReportLab canvas for drawing
+        bounds: TextBounds defining the rendering area (with padding already applied)
+        context: RendererContext for theme/font access
+        alignment: "left" or "center" (horizontal alignment)
+        vertical_alignment: "top", "center", or "bottom" (vertical alignment)
+
+    Returns:
+        Final Y position after all lines (for chaining additional content)
+    """
+    from reportlab.lib.colors import Color
+
+    if not fitted_lines:
+        return bounds.y + bounds.height
+
+    # Calculate vertical offset based on alignment
+    total_text_height = calculate_total_text_height(fitted_lines)
+
+    if vertical_alignment == "center":
+        vertical_offset = (bounds.height - total_text_height) / 2
+    elif vertical_alignment == "bottom":
+        vertical_offset = bounds.height - total_text_height
+    else:  # "top"
+        vertical_offset = 0.0
+
+    # Canonical start position (top-down) with vertical alignment applied
+    # Offset is subtracted because moving down in PDF = smaller Y values
+    text_y = bounds.get_start_y(fitted_lines[0]) - vertical_offset
+
+    for fitted_line in fitted_lines:
+        # Skip empty lines (just advance position)
+        if not fitted_line.text:
+            text_y -= calculate_line_advancement(fitted_line)
+            continue
+
+        canvas.setFillColor(Color(*context.theme.effective_text_color))
+        canvas.setFont(fitted_line.font_family, fitted_line.point_size)
+
+        if alignment == "left":
+            # Left-aligned rendering
+            if fitted_line.horizontal_scale < 1.0:
+                # Apply horizontal compression
+                canvas.saveState()
+                canvas.translate(bounds.x, text_y)
+                canvas.scale(fitted_line.horizontal_scale, 1.0)
+                canvas.drawString(0, 0, fitted_line.text)
+                canvas.restoreState()
+            else:
+                # No compression needed
+                canvas.drawString(bounds.x, text_y, fitted_line.text)
+
+        else:  # center
+            # Center-aligned rendering
+            base_width = canvas.stringWidth(fitted_line.text, fitted_line.font_family, fitted_line.point_size)
+            scaled_width = base_width * fitted_line.horizontal_scale
+
+            # Center within the bounds
+            center_x = bounds.x + (bounds.width / 2)
+            text_x = center_x - (scaled_width / 2)
+
+            if fitted_line.horizontal_scale < 1.0:
+                # Apply horizontal compression
+                canvas.saveState()
+                canvas.translate(text_x, text_y)
+                canvas.scale(fitted_line.horizontal_scale, 1.0)
+                canvas.drawString(0, 0, fitted_line.text)
+                canvas.restoreState()
+            else:
+                # No compression needed - use drawCentredString for precision
+                canvas.drawCentredString(center_x, text_y, fitted_line.text)
+
+        # CANONICAL line advancement
+        text_y -= calculate_line_advancement(fitted_line)
+
+    return text_y
+
+
+def render_fitted_text_with_prefix_suffix(
+    fitted_lines: List[Line],
+    canvas: Canvas,
+    bounds: TextBounds,
+    context: RendererContext,
+    alignment: str = "left",
+    vertical_alignment: str = "top"
+) -> float:
+    """
+    Canonical renderer with prefix/suffix support.
+
+    Replaces the older render_fitted_lines_with_prefix_suffix function.
+    Uses TextBounds for consistency and the canonical advancement formula.
+
+    Args:
+        fitted_lines: List of fitted Line objects with prefix/suffix data
+        canvas: ReportLab canvas for drawing
+        bounds: TextBounds defining the rendering area
+        context: RendererContext for theme/font access
+        alignment: "left" or "center" (center mode renders prefix+text+suffix as a unit)
+        vertical_alignment: "top", "center", or "bottom" (vertical alignment)
+
+    Returns:
+        Final Y position after all lines
+    """
+    from reportlab.lib.colors import Color
+
+    if not fitted_lines:
+        return bounds.y + bounds.height
+
+    # Calculate vertical offset based on alignment
+    total_text_height = calculate_total_text_height(fitted_lines)
+
+    if vertical_alignment == "center":
+        vertical_offset = (bounds.height - total_text_height) / 2
+    elif vertical_alignment == "bottom":
+        vertical_offset = bounds.height - total_text_height
+    else:  # "top"
+        vertical_offset = 0.0
+
+    # Canonical start position (top-down) with vertical alignment applied
+    # Offset is subtracted because moving down in PDF = smaller Y values
+    text_y = bounds.get_start_y(fitted_lines[0]) - vertical_offset
+
+    for fitted_line in fitted_lines:
+        # Skip empty lines
+        if not fitted_line.text:
+            text_y -= calculate_line_advancement(fitted_line)
+            continue
+
+        canvas.setFillColor(Color(*context.theme.effective_text_color))
+
+        # Get fonts for prefix/suffix
+        prefix_font = fitted_line.prefix_font or context.theme.monospace_family
+        suffix_font = fitted_line.suffix_font or context.theme.monospace_family
+
+        # Calculate widths
+        prefix_width = (canvas.stringWidth(fitted_line.prefix, prefix_font, fitted_line.point_size) *
+                       fitted_line.prefix_horizontal_scale) if fitted_line.prefix else 0
+        suffix_width = (canvas.stringWidth(fitted_line.suffix, suffix_font, fitted_line.point_size) *
+                       fitted_line.suffix_horizontal_scale) if fitted_line.suffix else 0
+        text_width = canvas.stringWidth(fitted_line.text, fitted_line.font_family, fitted_line.point_size) * fitted_line.horizontal_scale
+
+        if alignment == "left":
+            # Left-aligned: prefix at left, text after prefix, suffix at right
+
+            # Draw prefix
+            if fitted_line.prefix:
+                canvas.setFont(prefix_font, fitted_line.point_size)
+                canvas.saveState()
+                canvas.translate(bounds.x, text_y)
+                canvas.scale(fitted_line.prefix_horizontal_scale, 1.0)
+                canvas.drawString(0, 0, fitted_line.prefix)
+                canvas.restoreState()
+
+            # Draw main text
+            canvas.setFont(fitted_line.font_family, fitted_line.point_size)
+            canvas.saveState()
+            canvas.translate(bounds.x + prefix_width, text_y)
+            canvas.scale(fitted_line.horizontal_scale, 1.0)
+            canvas.drawString(0, 0, fitted_line.text)
+            canvas.restoreState()
+
+            # Draw suffix (right-aligned)
+            if fitted_line.suffix:
+                suffix_x = bounds.x + bounds.width - suffix_width
+                canvas.setFont(suffix_font, fitted_line.point_size)
                 canvas.saveState()
                 canvas.translate(suffix_x, text_y)
                 canvas.scale(fitted_line.suffix_horizontal_scale, 1.0)
                 canvas.drawString(0, 0, fitted_line.suffix)
                 canvas.restoreState()
-            else:
-                canvas.drawString(suffix_x, text_y, fitted_line.suffix)
 
-        # Move down for next line
-        text_y -= fitted_line.point_size + (fitted_line.point_size * fitted_line.leading_ratio)
+        else:  # center
+            # Center-aligned: prefix+text+suffix centered as a unit
+            total_width = prefix_width + text_width + suffix_width
+            center_x = bounds.x + (bounds.width / 2)
+            line_start_x = center_x - (total_width / 2)
+
+            # Draw prefix
+            if fitted_line.prefix:
+                canvas.setFont(prefix_font, fitted_line.point_size)
+                canvas.saveState()
+                canvas.translate(line_start_x, text_y)
+                canvas.scale(fitted_line.prefix_horizontal_scale, 1.0)
+                canvas.drawString(0, 0, fitted_line.prefix)
+                canvas.restoreState()
+
+            # Draw main text
+            canvas.setFont(fitted_line.font_family, fitted_line.point_size)
+            canvas.saveState()
+            canvas.translate(line_start_x + prefix_width, text_y)
+            canvas.scale(fitted_line.horizontal_scale, 1.0)
+            canvas.drawString(0, 0, fitted_line.text)
+            canvas.restoreState()
+
+            # Draw suffix
+            if fitted_line.suffix:
+                canvas.setFont(suffix_font, fitted_line.point_size)
+                canvas.saveState()
+                canvas.translate(line_start_x + prefix_width + text_width, text_y)
+                canvas.scale(fitted_line.suffix_horizontal_scale, 1.0)
+                canvas.drawString(0, 0, fitted_line.suffix)
+                canvas.restoreState()
+
+        # CANONICAL line advancement
+        text_y -= calculate_line_advancement(fitted_line)
 
     return text_y

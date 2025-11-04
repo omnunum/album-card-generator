@@ -6,7 +6,7 @@ from cardgen.api.models import Album
 from cardgen.design.base import CardSection, RendererContext
 from cardgen.utils.dimensions import Dimensions, inches_to_points
 from cardgen.utils.genres import build_genre_tree
-from cardgen.utils.text import Line, fit_text_block, render_fitted_lines_with_prefix_suffix
+from cardgen.utils.text import Line, fit_text_block, TextBounds, render_fitted_text_with_prefix_suffix
 
 
 class GenreTreeSection(CardSection):
@@ -19,6 +19,7 @@ class GenreTreeSection(CardSection):
         album: Album,
         font_size: float = 7.0,
         padding_override: float | None = None,
+        leading_ratio: float = 0.53,
     ) -> None:
         """
         Initialize genre tree section.
@@ -29,11 +30,14 @@ class GenreTreeSection(CardSection):
             album: Album object with genres.
             font_size: Font size in points (default: 7.0).
             padding_override: Custom padding in inches. If None, uses theme default.
+            leading_ratio: Leading ratio for text (default: 0.53).
+                          Updated from 0.4 to account for canonical formula using adjusted_point_size.
         """
         super().__init__(name, dimensions)
         self.album = album
         self.font_size = font_size
         self.padding_override = padding_override
+        self.leading_ratio = leading_ratio
 
     def _build_text_lines(self, context: RendererContext) -> list[Line]:
         """
@@ -57,7 +61,7 @@ class GenreTreeSection(CardSection):
         lines.append(Line(
             text="Genre Tree:",
             point_size=self.font_size,
-            leading_ratio=0.4,  # 40% line spacing
+            leading_ratio=self.leading_ratio,
             fixed_size=True,  # Don't reduce header
             font_family=f"{context.theme.font_family}-Bold"
         ))
@@ -76,7 +80,7 @@ class GenreTreeSection(CardSection):
                 lines.append(Line(
                     text=genre_name,
                     point_size=self.font_size,
-                    leading_ratio=0.4,
+                    leading_ratio=self.leading_ratio,
                     fixed_size=False,  # Don't reduce or wrap ASCII art
                     font_family=context.theme.font_family,
                     prefix=prefix,  # Tree chars stay monospace, won't compress
@@ -87,36 +91,15 @@ class GenreTreeSection(CardSection):
                 lines.append(Line(
                     text=genre_line,
                     point_size=self.font_size,
-                    leading_ratio=0.4,
+                    leading_ratio=self.leading_ratio,
                     fixed_size=False,
                     font_family=context.theme.font_family
                 ))
 
         return lines
 
-    def _render_fitted_lines(
-        self,
-        context: RendererContext,
-        fitted_lines: list[Line],
-        start_y: float,
-        padding: float
-    ) -> None:
-        """
-        Render fitted text lines for genre tree.
-
-        Args:
-            context: Rendering context.
-            fitted_lines: Fitted Line objects from fit_text_block.
-            start_y: Starting y position (top of text area, relative to section origin).
-            padding: Horizontal padding.
-        """
-        available_width = context.width - (padding * 2)
-        render_fitted_lines_with_prefix_suffix(
-            fitted_lines, context.canvas, context, start_y, padding, available_width
-        )
-
     def render(self, context: RendererContext) -> None:
-        """Render genre tree using fit_text_block."""
+        """Render genre tree using centralized rendering."""
         c = context.canvas
 
         # Establish local coordinate system
@@ -130,25 +113,30 @@ class GenreTreeSection(CardSection):
             # Use larger padding for genre panel (0.15" = 10.8 points instead of default ~7.2 points)
             padding = inches_to_points(0.15)
 
-        # Calculate available space
-        available_height = context.height - (padding * 2)
-        available_width = context.width - (padding * 2)
+        # Create TextBounds for fitting and rendering (using relative coordinates)
+        bounds = TextBounds.from_relative_context(context, padding)
 
         # Build Line objects
         lines = self._build_text_lines(context)
 
         # Fit all text within constraints
+        # Uses canonical formula (glyph_height_adjusted=True by default)
         fitted_lines = fit_text_block(
             c, lines, context,
-            max_width=available_width,
-            max_height=available_height,
+            max_width=bounds.width,
+            max_height=bounds.height,
             min_horizontal_scale=0.6,
             split_max=1,
             min_point_size=5.0
         )
 
-        # Render fitted lines (using relative coordinates now)
-        start_y = context.height - padding - fitted_lines[0].point_size
-        self._render_fitted_lines(context, fitted_lines, start_y, padding)
+        # Render using centralized canonical renderer with prefix/suffix support
+        render_fitted_text_with_prefix_suffix(
+            fitted_lines,
+            c,
+            bounds,
+            context,
+            alignment="left"
+        )
 
         c.restoreState()

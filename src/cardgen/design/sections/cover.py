@@ -6,14 +6,13 @@ import os
 
 import requests
 from reportlab.graphics import renderPDF
-from reportlab.lib.colors import Color
 from reportlab.lib.utils import ImageReader
 from svglib.svglib import svg2rlg
 
 from cardgen.design.base import CardSection, RendererContext
 from cardgen.utils.album_art import AlbumArt
 from cardgen.utils.dimensions import SAFE_MARGIN, Dimensions, inches_to_points, points_to_inches
-from cardgen.utils.text import Line, fit_text_block
+from cardgen.utils.text import Line, fit_text_block, TextBounds, render_fitted_text
 
 
 class CoverSection(CardSection):
@@ -27,6 +26,7 @@ class CoverSection(CardSection):
         title: str,
         artist: str,
         show_dolby_logo: bool = False,
+        leading_ratio: float = 0.27,
     ) -> None:
         """
         Initialize cover section.
@@ -38,12 +38,15 @@ class CoverSection(CardSection):
             title: Album title.
             artist: Artist name.
             show_dolby_logo: Whether to show the Dolby NR logo on the cover.
+            leading_ratio: Leading ratio for text (default: 0.27).
+                          Updated from 0.2 to account for canonical formula using adjusted_point_size.
         """
         super().__init__(name, dimensions)
         self.album_art = album_art
         self.title = title
         self.artist = artist
         self.show_dolby_logo = show_dolby_logo
+        self.leading_ratio = leading_ratio
 
     def _build_text_lines(self, context: RendererContext) -> list[Line]:
         """
@@ -75,7 +78,7 @@ class CoverSection(CardSection):
         lines.append(Line(
             text=self.title,
             point_size=context.theme.album_title_font_size,  # Max font size from theme, will auto-reduce to fit
-            leading_ratio=0.2,  # Spacing after title
+            leading_ratio=self.leading_ratio,
             fixed_size=False,
             font_family=title_font
         ))
@@ -84,54 +87,12 @@ class CoverSection(CardSection):
         lines.append(Line(
             text=self.artist,
             point_size=context.theme.artist_font_size,  # Max font size from theme, will auto-reduce to fit
-            leading_ratio=0.2,  # No spacing after (last line)
+            leading_ratio=self.leading_ratio,
             fixed_size=False,
             font_family=artist_font
         ))
 
         return lines
-
-    def _render_fitted_lines_centered(
-        self,
-        context: RendererContext,
-        fitted_lines: list[Line],
-        start_y: float,
-        available_width: float
-    ) -> None:
-        """
-        Render fitted text lines centered horizontally.
-
-        Args:
-            context: Rendering context.
-            fitted_lines: Fitted Line objects from fit_text_block.
-            start_y: Starting y position (top of text area).
-            available_width: Available width for centering.
-        """
-        c = context.canvas
-        text_y = start_y
-
-        for i, fitted_line in enumerate(fitted_lines):
-            c.setFont(fitted_line.font_family, fitted_line.point_size)
-            c.setFillColor(Color(*context.theme.effective_text_color))
-
-            # Calculate text width with scaling
-            base_width = c.stringWidth(fitted_line.text, fitted_line.font_family, fitted_line.point_size)
-            scaled_width = base_width * fitted_line.horizontal_scale
-
-            # Center the text
-            center_x = context.x + context.width / 2
-            # Draw text with horizontal scaling if needed
-            if fitted_line.horizontal_scale < 1.0:
-                c.saveState()
-                c.translate(center_x - scaled_width / 2, text_y)
-                c.scale(fitted_line.horizontal_scale, 1.0)
-                c.drawString(0, 0, fitted_line.text)
-                c.restoreState()
-            else:
-                c.drawCentredString(center_x, text_y, fitted_line.text)
-
-            # Move down for next line
-            text_y -= fitted_line.adjusted_point_size + (fitted_line.point_size * fitted_line.leading_ratio)
 
     def render(self, context: RendererContext) -> None:
         """Render front cover with album art and text based on cover_art_mode."""
@@ -253,25 +214,28 @@ class CoverSection(CardSection):
         """Render text (title/artist) and logos in the given context bounds."""
         c = context.canvas
 
-        # Calculate available space for text (respect safe margins)
-        available_text_width = context.width - (context.padding * 2)
-        available_text_height = context.height - (context.padding * 2)
+        # Create TextBounds for fitting and rendering (using absolute coordinates)
+        bounds = TextBounds.from_context(context, context.padding)
 
         # Build and fit text lines
         lines = self._build_text_lines(context)
         fitted_lines = fit_text_block(
             c, lines, context,
-            max_width=available_text_width,
-            max_height=available_text_height,
+            max_width=bounds.width,
+            max_height=bounds.height,
             min_horizontal_scale=0.75,
             split_max=2,
-            min_point_size=6.0 if context.theme.cover_art_mode == "compact" else 8.0,
-            glyph_height_adjusted=True
+            min_point_size=6.0 if context.theme.cover_art_mode == "compact" else 8.0
         )
 
-        # Render fitted lines centered
-        start_y = context.y + context.height - context.padding - fitted_lines[0].adjusted_point_size
-        self._render_fitted_lines_centered(context, fitted_lines, start_y, available_text_width)
+        # Render using centralized canonical renderer with center alignment
+        render_fitted_text(
+            fitted_lines,
+            c,
+            bounds,
+            context,
+            alignment="center"
+        )
 
         # Skip logos in compact mode (not enough space)
         if context.theme.cover_art_mode == "compact":

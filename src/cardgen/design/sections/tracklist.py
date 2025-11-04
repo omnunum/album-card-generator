@@ -9,7 +9,7 @@ from reportlab.pdfgen.canvas import Canvas
 from cardgen.api.models import Track
 from cardgen.design.base import CardSection, RendererContext
 from cardgen.utils.dimensions import Dimensions
-from cardgen.utils.text import fit_text_block, Line, measure_text_height
+from cardgen.utils.text import fit_text_block, Line, measure_text_height, calculate_line_advancement
 from cardgen.fonts import resolve_font
 
 
@@ -34,6 +34,8 @@ class TracklistSection(CardSection):
         track_title_overflow: str = "truncate",
         min_track_title_char_spacing: float = -1.0,
         use_tape_flip_offset: bool = True,
+        header_leading_ratio: float = 0.35,
+        track_leading_ratio: float = 0.35,
     ) -> None:
         """
         Initialize tracklist section.
@@ -47,6 +49,10 @@ class TracklistSection(CardSection):
             track_title_overflow: How to handle long track titles ("truncate" or "wrap").
             min_track_title_char_spacing: Minimum character spacing for track titles (negative = compressed).
             use_tape_flip_offset: Whether to offset Side B minimap by Side A unused space (for tape flip logic).
+            header_leading_ratio: Leading ratio for Side A/B headers (default: 0.44).
+                                 Updated from 0.33 to account for canonical formula using adjusted_point_size.
+            track_leading_ratio: Leading ratio for track lines (default: 0.23).
+                                Updated from 0.17 to account for canonical formula using adjusted_point_size.
         """
         super().__init__(name, dimensions)
         self.tracks = tracks
@@ -55,6 +61,8 @@ class TracklistSection(CardSection):
         self.track_title_overflow = track_title_overflow
         self.min_track_title_char_spacing = min_track_title_char_spacing
         self.use_tape_flip_offset = use_tape_flip_offset
+        self.header_leading_ratio = header_leading_ratio
+        self.track_leading_ratio = track_leading_ratio
 
     def render(self, context: RendererContext) -> None:
         """Render track listing with Side A/B and duration minimap."""
@@ -96,7 +104,7 @@ class TracklistSection(CardSection):
         text_y = (
             title_y # start at the bottom of the title
             - (tracklist_title_font_size * 0.2) # go down portion of the title text for a text-to-text buffer
-            - fitted_lines[0].point_size # go down the size of our first line
+            - fitted_lines[0].adjusted_point_size # go down the size of our first line
         )
 
         # Calculate Side A unused space for Side B offset (if using tape flip logic)
@@ -128,7 +136,7 @@ class TracklistSection(CardSection):
             lines.append(Line(
                 text="Side A",
                 point_size=context.theme.subtitle_font_size,
-                leading_ratio=(1/4),  # Spacing after header
+                leading_ratio=self.header_leading_ratio,
                 fixed_size=True,  # Never reduce this during iterations
                 font_family=f"{context.theme.font_family}-Bold"
             ))
@@ -138,7 +146,7 @@ class TracklistSection(CardSection):
                 lines.append(Line(
                     text=track.title,
                     point_size=context.theme.track_font_size,
-                    leading_ratio=(1/8),  # Spacing between tracks
+                    leading_ratio=self.track_leading_ratio,
                     track=track,  # Reference to original track
                     font_family=context.theme.font_family,
                     prefix=f"{track.track_number:2d}. ",
@@ -150,7 +158,7 @@ class TracklistSection(CardSection):
             lines.append(Line(
                 text="Side B",
                 point_size=context.theme.subtitle_font_size,
-                leading_ratio=(1/4),  # Spacing after header
+                leading_ratio=self.header_leading_ratio,
                 fixed_size=True,  # Never reduce this during iterations
                 font_family=f"{context.theme.font_family}-Bold"
             ))
@@ -160,7 +168,7 @@ class TracklistSection(CardSection):
                 lines.append(Line(
                     text=track.title,
                     point_size=context.theme.track_font_size,
-                    leading_ratio=(1/8),  # Spacing between tracks
+                    leading_ratio=self.track_leading_ratio,
                     track=track,  # Reference to original track
                     font_family=context.theme.font_family,
                     prefix=f"{track.track_number:2d}. ",
@@ -216,8 +224,8 @@ class TracklistSection(CardSection):
                 if side_letter == "B":
                     text_y = (
                         text_y
-                        + fitted_lines[i-1].point_size
-                        - fitted_line.point_size
+                        + fitted_lines[i-1].adjusted_point_size
+                        - fitted_line.adjusted_point_size
                     )
                 c.setFillColor(Color(*context.theme.effective_text_color))
                 c.setFont(f"{context.theme.font_family}-Bold", fitted_line.point_size)
@@ -240,7 +248,7 @@ class TracklistSection(CardSection):
                     unused_offset
                 )
 
-                text_y -= visible_point_size + (visible_point_size * fitted_line.leading_ratio)
+                text_y -= calculate_line_advancement(fitted_line)
 
             else:
                 # Render track line (first line or continuation)
@@ -290,7 +298,7 @@ class TracklistSection(CardSection):
                     c.setFont(suffix_font, fitted_line.point_size)
                     c.drawString(suffix_x, text_y, suffix)
 
-                text_y -= fitted_line.point_size + (fitted_line.point_size * fitted_line.leading_ratio)
+                text_y -= calculate_line_advancement(fitted_line)
 
         return text_y
 

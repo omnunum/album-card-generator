@@ -105,18 +105,18 @@ class DoubleAlbumJCard(Card):
             dimensions=Dimensions(width=0, height=0, x=0, y=0),  # Will be set by container
             album=self.album1,
             font_size=8.0,
-            padding_override=1/32
+            padding_override=1/16
         )
         metadata2 = MetadataSection(
             name="metadata_album2",
             dimensions=Dimensions(width=0, height=0, x=0, y=0),  # Will be set by container
             album=self.album2,
             font_size=8.0,
-            padding_override=1/32
+            padding_override=1/16
         )
         sections.append(
             ContainerSection(
-                name="back",
+                name="metadata",
                 dimensions=Dimensions(
                     width=JCARD_BACK_WIDTH,
                     height=JCARD_HEIGHT,
@@ -124,7 +124,8 @@ class DoubleAlbumJCard(Card):
                     y=0.0
                 ),
                 children=[metadata2, metadata1],  # Bottom to top (PDF coordinates)
-                layout="vertical"
+                layout="vertical",
+                padding_override=1/32  # Outer container padding
             )
         )
 
@@ -146,6 +147,7 @@ class DoubleAlbumJCard(Card):
                 album_art_left=self.album_art2,
                 album_art_right=self.album_art1,
                 show_dolby_logo=(self.album1.show_dolby_logo or self.album2.show_dolby_logo),
+                padding_override=5/64
             )
         )
 

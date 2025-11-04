@@ -3,15 +3,14 @@
 import os
 from typing import Optional
 
-from reportlab.pdfgen.canvas import Canvas
-from reportlab.graphics import renderPDF
 from reportlab.lib.colors import Color
+from reportlab.graphics import renderPDF
 from svglib.svglib import svg2rlg
 
 from cardgen.design.base import CardSection, RendererContext
 from cardgen.utils.album_art import AlbumArt
 from cardgen.utils.dimensions import Dimensions, inches_to_points
-from cardgen.utils.text import Line, fit_text_block, calculate_total_height
+from cardgen.utils.text import Line, fit_text_block, calculate_total_height, TextBounds, render_fitted_text
 
 
 
@@ -27,6 +26,8 @@ class SpineSection(CardSection):
         album_art_left: Optional[AlbumArt] = None,
         album_art_right: Optional[AlbumArt] = None,
         show_dolby_logo: bool = False,
+        leading_ratio: float = 0.35,
+        padding_override: float | None = None,
     ) -> None:
         """
         Initialize spine section with modular components.
@@ -41,12 +42,17 @@ class SpineSection(CardSection):
             album_art_left: Optional AlbumArt for left side of spine.
             album_art_right: Optional AlbumArt for right side of spine.
             show_dolby_logo: Whether to show the Dolby NR logo on the spine.
+            leading_ratio: Leading ratio for text (default: 0.35).
+                          Updated from 0.35 to account for canonical formula using adjusted_point_size.
+            padding_override: Custom padding in inches for top/bottom spacing. If None, uses default of 1/16".
         """
         super().__init__(name, dimensions)
         self.text_lines: list[str] = text_lines
         self.album_art_left = album_art_left
         self.album_art_right = album_art_right
         self.show_dolby_logo = show_dolby_logo
+        self.leading_ratio = leading_ratio
+        self.padding_override = padding_override
 
     def _build_text_lines(self, context: RendererContext) -> list[Line]:
         """
@@ -67,7 +73,7 @@ class SpineSection(CardSection):
             formatted_lines.append(Line(
                 text=line,
                 point_size=30,  # Start large, fit_text_block will reduce if needed
-                leading_ratio=0.35,  # Spacing between lines
+                leading_ratio=self.leading_ratio,
                 fixed_size=False,  # Allow size reduction
                 font_family=f"{context.theme.font_family}-Bold"
             ))
@@ -214,38 +220,42 @@ class SpineSection(CardSection):
 
         # Build and fit text
         lines = self._build_text_lines(context)
+
+        # Use custom padding if provided, otherwise use consistent small padding (1/16")
+        if self.padding_override is not None:
+            padding_points = inches_to_points(self.padding_override)
+        else:
+            # Default padding: 1/16" = 4.5 points for consistent spacing from edges
+            padding_points = inches_to_points(1/16)
+
         fitted_lines = fit_text_block(
             c, lines, context,
             max_width=available_length,
-            max_height=available_width - inches_to_points(1/8),
+            max_height=available_width - (padding_points * 2),
             min_horizontal_scale=0.7,
             split_max=1,
             min_point_size=6.0
         )
-        # don't add a leading offset for the last line since we have a margin
-        text_content_height = calculate_total_height(fitted_lines, adjusted=True)
-        margin = (available_width - text_content_height) / 2
-        # Render with zero offset (already positioned at correct center)
-        c.saveState()
-        c.translate(0, available_width - margin)
-        for fitted_line in fitted_lines:
-            c.setFont(fitted_line.font_family, fitted_line.point_size)
-            c.setFillColor(Color(*context.theme.effective_text_color))
 
-            # Calculate text width with scaling
-            base_width = c.stringWidth(
-                fitted_line.text,
-                fitted_line.font_family,
-                fitted_line.point_size
-            )
-            scaled_width = base_width * fitted_line.horizontal_scale
-            x_offset = (available_length - scaled_width) / 2
-            # Draw centered text with horizontal scaling if needed
-            c.translate(x_offset, -fitted_line.adjusted_point_size)
-            c.scale(fitted_line.horizontal_scale, 1.0)
-            c.drawString(0, 0, fitted_line.text)
-            c.translate(-x_offset, -fitted_line.point_size * fitted_line.leading_ratio)
-        c.restoreState()
+        # Create TextBounds for the rotated coordinate system
+        # We're already in rotated space, so use coordinates relative to current position
+        bounds = TextBounds(
+            x=0,
+            y=padding_points,
+            width=available_length,
+            height=available_width - (padding_points * 2)
+        )
+
+        # Render using centralized canonical renderer with center alignment (horizontal and vertical)
+        # Vertical centering ensures text looks good for both single-line and multi-line spines
+        render_fitted_text(
+            fitted_lines,
+            c,
+            bounds,
+            context,
+            alignment="center",
+            vertical_alignment="center"
+        )
 
     def _render_border(
         self,

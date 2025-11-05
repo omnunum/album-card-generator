@@ -15,7 +15,7 @@ class DescriptorsSection(CardSection):
         dimensions: Dimensions,
         album: Album,
         font_size: float = 7.0,
-        padding_override: float | None = None,
+        padding: float = 0.15,
         leading_ratio: float = 0.53,
     ) -> None:
         """
@@ -26,14 +26,14 @@ class DescriptorsSection(CardSection):
             dimensions: Section dimensions.
             album: Album object with RYM descriptors.
             font_size: Font size in points (default: 7.0).
-            padding_override: Custom padding in inches. If None, uses theme default.
+            padding: Padding in inches (default: 0.15).
             leading_ratio: Leading ratio for text (default: 0.53).
                           Updated from 0.4 to account for canonical formula using adjusted_point_size.
         """
         super().__init__(name, dimensions)
         self.album = album
         self.font_size = font_size
-        self.padding_override = padding_override
+        self.padding = padding
         self.leading_ratio = leading_ratio
 
     def _build_text_lines(self, context: RendererContext) -> list[Line]:
@@ -79,12 +79,8 @@ class DescriptorsSection(CardSection):
         c.saveState()
         c.translate(context.x, context.y)
 
-        # Use custom padding if provided, otherwise use larger padding for genre panel
-        if self.padding_override is not None:
-            padding = inches_to_points(self.padding_override)
-        else:
-            # Use larger padding for genre panel (0.15" = 10.8 points instead of default ~7.2 points)
-            padding = inches_to_points(0.15)  # Convert inches to points
+        # Convert padding from inches to points
+        padding = inches_to_points(self.padding)
 
         # Create TextBounds for fitting and rendering (using relative coordinates)
         bounds = TextBounds.from_relative_context(context, padding)

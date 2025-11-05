@@ -106,7 +106,7 @@ class JCard4Panel(Card):
             ),
             album=self.album,
             font_size=9.0,
-            padding_override=0.0625,
+            padding=1/16,
         )
 
         # Create descriptors section (right half)
@@ -120,7 +120,7 @@ class JCard4Panel(Card):
             ),
             album=self.album,
             font_size=9.0,
-            padding_override=0.0625,
+            padding=1/16,
         )
 
         # Container to hold genre tree and descriptors side by side
@@ -144,7 +144,7 @@ class JCard4Panel(Card):
                 dimensions=self.panels["back"],
                 album=self.album,
                 font_size=9.0,  # Increased from 5.0, fits better than 10.0
-                padding_override=1/32
+                padding=1/16
             )
         )
 

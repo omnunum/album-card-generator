@@ -109,6 +109,12 @@ class Theme(BaseModel):
     cover_art_align: CoverArtAlign = "center"
     """Horizontal alignment for fullscale mode: "center", "left", or "right"."""
 
+    cover_title_padding: float = 1/16
+    """Padding around cover title text in inches (font-dependent)."""
+
+    cover_artist_padding: float = 1/16
+    """Padding around cover artist text in inches (font-dependent)."""
+
     # ========================================================================
     # Track Formatting
     # ========================================================================
@@ -121,7 +127,7 @@ class Theme(BaseModel):
     # ========================================================================
     # Card Settings
     # ========================================================================
-    padding: float = 0.125
+    padding: float = 1/16
     """Default padding in inches."""
 
     tape_length: int = 90

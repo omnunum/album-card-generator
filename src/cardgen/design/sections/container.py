@@ -20,7 +20,7 @@ class ContainerSection(CardSection):
         children: list[CardSection],
         layout: str = "horizontal",
         size_style: SizeStyle = "full",
-        padding_override: float | None = None,
+        padding: float = 0.0,
     ) -> None:
         """
         Initialize container section.
@@ -31,7 +31,7 @@ class ContainerSection(CardSection):
             children: List of child sections to lay out.
             layout: Layout direction - "horizontal" or "vertical".
             size_style: Size style - "full" or "compact" (default: "full").
-            padding_override: Custom padding in inches. If None, no padding applied.
+            padding: Padding in inches (default: 0.0).
 
         Raises:
             ValueError: If layout is not "horizontal" or "vertical".
@@ -47,7 +47,7 @@ class ContainerSection(CardSection):
         # setter can use them to layout children
         self.children = children
         self.layout = layout
-        self.padding_override = padding_override
+        self.padding = padding
 
         # Call parent __init__ which will set dimensions and trigger _layout_children()
         super().__init__(name, dimensions, size_style)
@@ -72,17 +72,11 @@ class ContainerSection(CardSection):
 
     def _layout_children(self) -> None:
         """Calculate and set dimensions for all child sections."""
-        # Calculate effective padding (keep in inches since Dimensions uses inches)
-        if self.padding_override is not None:
-            padding_inches = self.padding_override
-        else:
-            padding_inches = 0.0  # No padding by default
-
-        # Apply padding inset to available space
-        available_width = self.dimensions.width - (2 * padding_inches)
-        available_height = self.dimensions.height - (2 * padding_inches)
-        offset_x = self.dimensions.x + padding_inches
-        offset_y = self.dimensions.y + padding_inches
+        # Apply padding inset to available space (padding already in inches)
+        available_width = self.dimensions.width - (2 * self.padding)
+        available_height = self.dimensions.height - (2 * self.padding)
+        offset_x = self.dimensions.x + self.padding
+        offset_y = self.dimensions.y + self.padding
 
         num_children = len(self.children)
 

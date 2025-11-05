@@ -105,14 +105,14 @@ class DoubleAlbumJCard(Card):
             dimensions=Dimensions(width=0, height=0, x=0, y=0),  # Will be set by container
             album=self.album1,
             font_size=8.0,
-            padding_override=1/16
+            padding=1/16
         )
         metadata2 = MetadataSection(
             name="metadata_album2",
             dimensions=Dimensions(width=0, height=0, x=0, y=0),  # Will be set by container
             album=self.album2,
             font_size=8.0,
-            padding_override=1/16
+            padding=1/16
         )
         sections.append(
             ContainerSection(
@@ -125,7 +125,7 @@ class DoubleAlbumJCard(Card):
                 ),
                 children=[metadata2, metadata1],  # Bottom to top (PDF coordinates)
                 layout="vertical",
-                padding_override=1/32  # Outer container padding
+                padding=1/32  # Outer container padding
             )
         )
 
@@ -147,7 +147,7 @@ class DoubleAlbumJCard(Card):
                 album_art_left=self.album_art2,
                 album_art_right=self.album_art1,
                 show_dolby_logo=(self.album1.show_dolby_logo or self.album2.show_dolby_logo),
-                padding_override=5/64
+                padding=5/64
             )
         )
 
@@ -212,14 +212,14 @@ class DoubleAlbumJCard(Card):
             dimensions=Dimensions(width=0, height=0, x=0, y=0),  # Will be set by container
             album=self.album1,
             font_size=9.0,
-            padding_override=0.0625,  # Half of standard padding
+            padding=1/32,  # Half of standard padding
         )
         descriptors1 = DescriptorsSection(
             name="descriptors_album1",
             dimensions=Dimensions(width=0, height=0, x=0, y=0),  # Will be set by container
             album=self.album1,
             font_size=9.0,
-            padding_override=0.0625,  # Half of standard padding
+            padding=1/32,  # Half of standard padding
         )
 
         # Album 2 sections (bottom half of panel 5)
@@ -228,14 +228,14 @@ class DoubleAlbumJCard(Card):
             dimensions=Dimensions(width=0, height=0, x=0, y=0),  # Will be set by container
             album=self.album2,
             font_size=9.0,
-            padding_override=0.0625,  # Half of standard padding
+            padding=1/32,  # Half of standard padding
         )
         descriptors2 = DescriptorsSection(
             name="descriptors_album2",
             dimensions=Dimensions(width=0, height=0, x=0, y=0),  # Will be set by container
             album=self.album2,
             font_size=9.0,
-            padding_override=0.0625,  # Half of standard padding
+            padding=1/32,  # Half of standard padding
         )
 
         # Create nested containers: outer vertical split for albums, inner horizontal split for genre/descriptors
@@ -249,7 +249,8 @@ class DoubleAlbumJCard(Card):
                 y=JCARD_HEIGHT / 2
             ),
             children=[genre1, descriptors1],  # Left to right
-            layout="horizontal"
+            layout="horizontal",
+            padding=1/32
         )
 
         album2_container = ContainerSection(
@@ -261,7 +262,8 @@ class DoubleAlbumJCard(Card):
                 y=0.0
             ),
             children=[genre2, descriptors2],  # Left to right
-            layout="horizontal"
+            layout="horizontal",
+            padding=1/32
         )
 
         sections.append(

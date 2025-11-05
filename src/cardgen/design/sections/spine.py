@@ -27,7 +27,7 @@ class SpineSection(CardSection):
         album_art_right: Optional[AlbumArt] = None,
         show_dolby_logo: bool = False,
         leading_ratio: float = 0.35,
-        padding_override: float | None = None,
+        padding: float = 1/16,
     ) -> None:
         """
         Initialize spine section with modular components.
@@ -44,7 +44,7 @@ class SpineSection(CardSection):
             show_dolby_logo: Whether to show the Dolby NR logo on the spine.
             leading_ratio: Leading ratio for text (default: 0.35).
                           Updated from 0.35 to account for canonical formula using adjusted_point_size.
-            padding_override: Custom padding in inches for top/bottom spacing. If None, uses default of 1/16".
+            padding: Padding in inches for top/bottom spacing (default: 1/16).
         """
         super().__init__(name, dimensions)
         self.text_lines: list[str] = text_lines
@@ -52,7 +52,7 @@ class SpineSection(CardSection):
         self.album_art_right = album_art_right
         self.show_dolby_logo = show_dolby_logo
         self.leading_ratio = leading_ratio
-        self.padding_override = padding_override
+        self.padding = padding
 
     def _build_text_lines(self, context: RendererContext) -> list[Line]:
         """
@@ -221,12 +221,8 @@ class SpineSection(CardSection):
         # Build and fit text
         lines = self._build_text_lines(context)
 
-        # Use custom padding if provided, otherwise use consistent small padding (1/16")
-        if self.padding_override is not None:
-            padding_points = inches_to_points(self.padding_override)
-        else:
-            # Default padding: 1/16" = 4.5 points for consistent spacing from edges
-            padding_points = inches_to_points(1/16)
+        # Convert padding from inches to points
+        padding_points = inches_to_points(self.padding)
 
         fitted_lines = fit_text_block(
             c, lines, context,

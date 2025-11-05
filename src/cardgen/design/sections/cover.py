@@ -156,7 +156,7 @@ class CoverSection(CardSection):
             width=context.width,
             height=text_height,
             theme=context.theme,
-            padding=context.padding,
+            padding=inches_to_points(context.theme.cover_title_padding),
             dpi=context.dpi
         )
         self._render_text_section(text_context)
@@ -204,7 +204,7 @@ class CoverSection(CardSection):
             width=context.height,  # Original height becomes width after rotation
             height=text_width_pts,  # Original text width becomes height
             theme=context.theme,
-            padding=context.padding / 2,
+            padding=inches_to_points(context.theme.cover_title_padding) / 2,
             dpi=context.dpi
         )
         self._render_text_section(text_context)
@@ -215,7 +215,7 @@ class CoverSection(CardSection):
         c = context.canvas
 
         # Create TextBounds for fitting and rendering (using absolute coordinates)
-        bounds = TextBounds.from_context(context, context.padding)
+        bounds = TextBounds.from_context(context, inches_to_points(context.theme.cover_title_padding))
 
         # Build and fit text lines
         lines = self._build_text_lines(context)

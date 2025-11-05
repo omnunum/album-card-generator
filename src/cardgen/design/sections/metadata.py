@@ -17,7 +17,7 @@ class MetadataSection(CardSection):
         dimensions: Dimensions,
         album: Album,
         font_size: float = 5.0,
-        padding_override: float | None = None,
+        padding: float = 1/16,
         leading_ratio: float = 0.33,
     ) -> None:
         """
@@ -28,14 +28,14 @@ class MetadataSection(CardSection):
             dimensions: Section dimensions.
             album: Album object with genres and metadata.
             font_size: Font size in points (default: 5.0).
-            padding_override: Custom padding in inches. If None, uses theme default.
+            padding: Padding in inches (default: 1/16).
             leading_ratio: Leading ratio for text (default: 0.33).
                           Updated from 0.25 to account for canonical formula using adjusted_point_size.
         """
         super().__init__(name, dimensions)
         self.album = album
         self.font_size = font_size
-        self.padding_override = padding_override
+        self.padding = padding
         self.leading_ratio = leading_ratio
 
     def _build_text_lines_for_column(
@@ -118,11 +118,8 @@ class MetadataSection(CardSection):
         """Render metadata content as two columns of vertical text (rotated 90 degrees)."""
         c = context.canvas
 
-        # Use custom padding if provided, otherwise use 1/16" for consistent spacing
-        if self.padding_override is not None:
-            padding = inches_to_points(self.padding_override)
-        else:
-            padding = inches_to_points(1/16)
+        # Convert padding from inches to points
+        padding = inches_to_points(self.padding)
 
         # Process album data into left and right columns
         # Left column: Leaf genres

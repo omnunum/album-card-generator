@@ -35,7 +35,9 @@ producer = create_card(
         tape_length=90,
         artist_font="stop",
         artist_font_size=18,
+        cover_artist_padding=1/8,
         title_font="jethose",
+        cover_title_padding=1/8,
         album_title_font_size=28,
         label_logo="https://kagi.com/proxy/gb1qta628tre1.png?c=TklOzPjLPioJ5YMJT75bSqbOvNy81tkBsxLuoTItbsNXavdMe7R68XGmq94gzX0y",
         dolby_logo=True

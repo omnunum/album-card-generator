@@ -8,7 +8,7 @@ from reportlab.pdfgen.canvas import Canvas
 
 from cardgen.api.models import Track
 from cardgen.design.base import CardSection, RendererContext
-from cardgen.utils.dimensions import Dimensions
+from cardgen.utils.dimensions import Dimensions, inches_to_points
 from cardgen.utils.text import fit_text_block, Line, measure_text_height, calculate_line_advancement
 from cardgen.fonts import resolve_font
 
@@ -34,7 +34,8 @@ class TracklistSection(CardSection):
         track_title_overflow: str = "truncate",
         min_track_title_char_spacing: float = -1.0,
         use_tape_flip_offset: bool = True,
-        header_leading_ratio: float = 0.35,
+        header_padding: float = 1/32,
+        header_leading_ratio: float = 1/8,
         track_leading_ratio: float = 0.35,
     ) -> None:
         """
@@ -53,6 +54,7 @@ class TracklistSection(CardSection):
                                  Updated from 0.33 to account for canonical formula using adjusted_point_size.
             track_leading_ratio: Leading ratio for track lines (default: 0.23).
                                 Updated from 0.17 to account for canonical formula using adjusted_point_size.
+            header_padding: Extra padding in inches before Side A and Side B headers (default: 1/16).
         """
         super().__init__(name, dimensions)
         self.tracks = tracks
@@ -63,6 +65,7 @@ class TracklistSection(CardSection):
         self.use_tape_flip_offset = use_tape_flip_offset
         self.header_leading_ratio = header_leading_ratio
         self.track_leading_ratio = track_leading_ratio
+        self.header_padding = header_padding
 
     def render(self, context: RendererContext) -> None:
         """Render track listing with Side A/B and duration minimap."""
@@ -84,7 +87,16 @@ class TracklistSection(CardSection):
         c.drawString(context.x + context.padding, title_y, self.title)
 
         # Calculate available space left for the rest of the text
-        available_height = title_y - context.y - context.padding
+        # Account for header_padding that will be applied before each side header during rendering
+        num_sides = len(set(t.side for t in self.tracks))  # Count unique sides
+        header_padding_points = inches_to_points(self.header_padding)
+
+        available_height = (
+            title_y
+            - context.y
+            - context.padding
+            - (num_sides * header_padding_points)  # Subtract padding for each side header
+        )
         text_width = context.width - (context.padding * 2)
 
         # Build Line objects for all content
@@ -217,15 +229,20 @@ class TracklistSection(CardSection):
                 side_letter = fitted_line.text[-1]  # "A" or "B"
                 side_tracks = [t for t in self.tracks if t.side == side_letter]
                 unused_offset = side_a_unused_duration if side_letter == "B" else 0
-                # when we get to B our text_y (the bottom of where we draw up from) is only offset
-                #   based on the small text point size, but we draw a subtitle point size up, which
-                #   causes overdraw.  We need to un-offset the smaller amount and then re-offset
-                #   the larger amount
-                if side_letter == "B":
+
+                # Add extra padding before both Side A and Side B headers
+                header_padding_points = inches_to_points(self.header_padding)
+                if side_letter == "A":
+                    # For Side A, just add the header padding
+                    text_y -= header_padding_points
+                elif side_letter == "B":
+                    # For Side B, we need to un-offset the smaller amount and then re-offset
+                    # the larger amount (to fix overdraw), plus add extra padding
                     text_y = (
                         text_y
                         + fitted_lines[i-1].adjusted_point_size
                         - fitted_line.adjusted_point_size
+                        - header_padding_points
                     )
                 c.setFillColor(Color(*context.theme.effective_text_color))
                 c.setFont(f"{context.theme.font_family}-Bold", fitted_line.point_size)

@@ -291,8 +291,8 @@ class DoubleAlbumJCard(Card):
         """
         # Fold lines between each panel
         return [
-            JCARD_BACK_WIDTH,  # Between metadata and spine
-            JCARD_BACK_WIDTH + JCARD_SPINE_WIDTH,  # Between spine and cover
+            # JCARD_BACK_WIDTH,  # Between metadata and spine
+            # JCARD_BACK_WIDTH + JCARD_SPINE_WIDTH,  # Between spine and cover
             JCARD_BACK_WIDTH + JCARD_SPINE_WIDTH + JCARD_PANEL_WIDTH,  # Between cover and tracklist
             JCARD_BACK_WIDTH + JCARD_SPINE_WIDTH + JCARD_PANEL_WIDTH + JCARD_PANEL_WIDTH,  # Between tracklist and genre panel
         ]

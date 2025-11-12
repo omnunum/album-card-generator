@@ -30,6 +30,6 @@ card = create_card(
 )
 
 # Render to PDF
-render_cards_to_pdf([card], "my_card.pdf")
+render_cards_to_pdf([card], "my_card.pdf", config=config)
 
 print("✓ Card saved to: my_card.pdf")

@@ -156,6 +156,8 @@ def create_card_from_album(
     theme_updates["title_font"] = resolve_font(theme.title_font, "helvetica-bold")
     theme_updates["artist_font"] = resolve_font(theme.artist_font, "helvetica")
     theme_updates["monospace_family"] = resolve_font(theme.monospace_family, "courier")
+    # Unicode font: try Iosevka-Regular, fallback to Arial-Unicode (system font with broad coverage)
+    theme_updates["unicode_font_family"] = resolve_font(theme.unicode_font_family, "Arial-Unicode")
 
     # Process theme: Extract gradient colors if enabled
     if theme.use_gradient:
@@ -197,6 +199,7 @@ def render_cards_to_pdf(
     dpi: int = 600,
     page_size: str = "letter",
     include_crop_marks: bool = True,
+    config: Config | None = None,
 ) -> None:
     """
     Render multiple cards to a multi-page PDF.
@@ -205,11 +208,14 @@ def render_cards_to_pdf(
 
     Args:
         cards: List of Card objects to render.
-        output_path: Path to output PDF file.
+        output_path: Path to output PDF file. If relative and config is provided,
+                    resolves to config.output_directory / output_path.
         dpi: DPI for image rendering (300-1200). Default: 600.
         page_size: Page size for printing. Default: "letter".
                   Options: "letter", "half", "a4", "a5", etc.
         include_crop_marks: Whether to include crop marks and fold guides. Default: True.
+        config: Optional Config object. If provided, relative output paths will be
+               resolved to config.output_directory. Default: None (uses current directory).
 
     Example:
         ```python
@@ -222,14 +228,25 @@ def render_cards_to_pdf(
         card1 = create_card("album/abc123", config, JCard4Panel)
         card2 = create_card("album/xyz789", config, JCard4Panel, Theme(use_gradient=True))
 
-        # Render to PDF
-        render_cards_to_pdf([card1, card2], "my_cards.pdf", dpi=720)
+        # Render to PDF (respects config.output_directory for relative paths)
+        render_cards_to_pdf([card1, card2], "my_cards.pdf", dpi=720, config=config)
         ```
     """
     if not cards:
         raise ValueError("No cards provided to render")
 
     output_path = Path(output_path)
+
+    # If config provided and path is relative, resolve to output_directory
+    if config is not None and not output_path.is_absolute():
+        output_dir = Path(config.output_directory).resolve()
+        output_path = output_dir / output_path
+
+    # Ensure path is absolute
+    output_path = output_path.resolve()
+
+    # Create output directory if it doesn't exist
+    output_path.parent.mkdir(parents=True, exist_ok=True)
 
     logger.info(
         f"Rendering {len(cards)} card(s) to PDF at {dpi} DPI "
@@ -371,6 +388,8 @@ def create_double_album_card_from_albums(
     theme_updates["title_font"] = resolve_font(theme.title_font, "helvetica-bold")
     theme_updates["artist_font"] = resolve_font(theme.artist_font, "helvetica")
     theme_updates["monospace_family"] = resolve_font(theme.monospace_family, "courier")
+    # Unicode font: try Iosevka-Regular, fallback to Arial-Unicode (system font with broad coverage)
+    theme_updates["unicode_font_family"] = resolve_font(theme.unicode_font_family, "Arial-Unicode")
 
     # Process theme: Extract gradient colors if enabled (use first album's art)
     if theme.use_gradient:

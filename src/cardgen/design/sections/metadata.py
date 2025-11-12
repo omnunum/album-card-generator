@@ -166,7 +166,7 @@ class MetadataSection(CardSection):
                 max_height=available_height,
                 min_horizontal_scale=0.7,
                 split_max=1,
-                min_point_size=5.0
+                min_point_size=4.0
             )
             self._render_fitted_column(context, fitted_left, padding, padding, context.width, column_width)
 
@@ -179,7 +179,7 @@ class MetadataSection(CardSection):
                 max_height=available_height,
                 min_horizontal_scale=0.7,
                 split_max=1,
-                min_point_size=5.0
+                min_point_size=4.0
             )
             # Right column starts after left column plus the gap between columns
             x_right = padding + column_width + column_gap

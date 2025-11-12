@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from PIL import Image as PILImage
-from reportlab.lib.colors import gray
+from reportlab.lib.colors import gray, white
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import inch
 from reportlab.pdfgen import canvas
@@ -307,10 +307,6 @@ class PDFRenderer:
         fold_lines: list[float],
     ) -> None:
         """Draw crop marks and fold guides."""
-        c.setStrokeColor(gray)
-        c.setLineWidth(1.0)
-        c.setDash(1, 2)
-
         # Create positioned card dimensions
         positioned_card = Dimensions(
             width=card_dims.width,
@@ -320,13 +316,20 @@ class PDFRenderer:
         )
         point_dims = positioned_card.to_points()
 
-        # Draw fold lines
+        # Draw fold lines (white, sparsely dotted)
+        c.setStrokeColor(white)
+        c.setLineWidth(0.25)
+        c.setDash(1, 2)  # More sparse dotted pattern
+
         for fold_x in fold_lines:
             fold_x_pts = inches_to_points(fold_x) + point_dims.x
             c.line(fold_x_pts, point_dims.y, fold_x_pts, point_dims.y + point_dims.height)
 
-        # Draw corner crop marks
-        mark_length = 18  # points
+        # Draw corner crop marks (gray, solid)
+        c.setStrokeColor(gray)
+        c.setDash()  # Solid lines for crop marks
+        mark_length = 9  # points (half size to prevent bleeding into neighboring cards)
+
         corners = [
             (point_dims.x, point_dims.y),  # Bottom-left
             (point_dims.x + point_dims.width, point_dims.y),  # Bottom-right
@@ -334,7 +337,6 @@ class PDFRenderer:
             (point_dims.x + point_dims.width, point_dims.y + point_dims.height),  # Top-right
         ]
 
-        c.setDash()  # Solid lines for crop marks
         for cx, cy in corners:
             # Horizontal marks
             c.line(cx - mark_length, cy, cx, cy)

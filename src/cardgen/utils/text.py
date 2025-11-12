@@ -3,7 +3,7 @@
 from __future__ import annotations
 import copy
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, List
 from reportlab.pdfgen.canvas import Canvas
 from cardgen.fonts import get_font_path
@@ -20,6 +20,27 @@ logger = logging.getLogger(__name__)
 if TYPE_CHECKING:
     from cardgen.api.models import Track
     from cardgen.design.base import RendererContext
+
+
+# ============================================================================
+# Unicode Font Detection
+# ============================================================================
+
+def has_non_latin_characters(text: str) -> bool:
+    """
+    Check if text contains characters outside basic Latin range (0x0000-0x00FF).
+
+    Basic Latin (0x0000-0x007F) and Latin-1 Supplement (0x0080-0x00FF) are
+    supported by standard fonts like Helvetica. Characters beyond this range
+    require Unicode-capable fonts like Noto Sans.
+
+    Args:
+        text: Text to analyze
+
+    Returns:
+        True if text contains characters beyond Latin-1 range
+    """
+    return any(ord(char) > 0x00FF for char in text)
 
 
 # ============================================================================
@@ -61,6 +82,8 @@ class Line:
     suffix_font: str | None = None
     prefix_horizontal_scale: float = 1.0
     suffix_horizontal_scale: float = 1.0
+    split_index: int = 0
+    """Tracks split generation: 0=original, 1=first split, 2=second split, etc."""
 
     def __post_init__(self):
         """Initialize adjusted_point_size with fallback if not explicitly set."""
@@ -275,7 +298,8 @@ def measure_text_height(text: str, font_family: str, point_size: float) -> float
             logger.warning(f"Suspicious height measurement: {height}pt for {point_size}pt font, using fallback")
             return point_size * 0.75
 
-        return height
+        # Cap height at point_size to prevent oversized unicode glyphs from inflating spacing
+        return min(height, point_size)
 
     except Exception as e:
         logger.warning(f"Failed to measure text height: {e}, falling back to estimation")
@@ -433,85 +457,61 @@ def _process_lines_at_current_size(
 
         if base_width <= effective_width:
             # Line fits without compression
-            processed_lines.append(Line(
-                text=line.text,
-                point_size=line.point_size,
-                leading_ratio=line.leading_ratio,
-                horizontal_scale=1.0,
-                fixed_size=line.fixed_size,
-                track=line.track,
-                font_family=line.font_family,
-                prefix=line.prefix,
-                suffix=line.suffix,
-                prefix_font=line.prefix_font,
-                suffix_font=line.suffix_font,
-                prefix_horizontal_scale=line.prefix_horizontal_scale,
-                suffix_horizontal_scale=line.suffix_horizontal_scale
+            processed_lines.append(replace(line, horizontal_scale=1.0))
+            continue
+        # Calculate needed compression
+        needed_scale = effective_width / base_width
+
+        if needed_scale >= min_horizontal_scale:
+            # Compression is acceptable
+            processed_lines.append(replace(line, horizontal_scale=needed_scale))
+            continue
+        # Compression too extreme - check if we can still split this line
+        if line.split_index >= split_max:
+            # Already been split max times, truncate instead
+            truncated_text = _truncate_at_word_boundary(
+                canvas, line.text, effective_width, line.font_family, line.point_size,
+                min_horizontal_scale
+            )
+            processed_lines.append(replace(
+                line,
+                text=truncated_text,
+                horizontal_scale=min_horizontal_scale
             ))
-        else:
-            # Calculate needed compression
-            needed_scale = effective_width / base_width
+            continue
+        # Can still split - try splitting
+        split_lines = _split_line_at_word_boundary(
+            canvas, line.text, effective_width, line.font_family, line.point_size,
+            min_horizontal_scale, split_max
+        )
 
-            if needed_scale >= min_horizontal_scale:
-                # Compression is acceptable
-                processed_lines.append(Line(
-                    text=line.text,
-                    point_size=line.point_size,
-                    leading_ratio=line.leading_ratio,
-                    horizontal_scale=needed_scale,
-                    fixed_size=line.fixed_size,
-                    track=line.track,
-                    font_family=line.font_family,
-                    prefix=line.prefix,
-                    suffix=line.suffix,
-                    prefix_font=line.prefix_font,
-                    suffix_font=line.suffix_font,
-                    prefix_horizontal_scale=line.prefix_horizontal_scale,
-                    suffix_horizontal_scale=line.suffix_horizontal_scale
-                ))
-            else:
-                # Compression too extreme - try splitting
-                split_lines = _split_line_at_word_boundary(
-                    canvas, line.text, effective_width, line.font_family, line.point_size,
-                    min_horizontal_scale, split_max
+        # Calculate scale needed for each split line
+        split_parts : list[tuple[str, float]]= []
+        for i, split_text in enumerate(split_lines):
+            split_width = canvas.stringWidth(split_text, line.font_family, line.point_size)
+            split_scale = effective_width / split_width if split_width > effective_width else 1.0
+
+            # If last line and scale still too extreme, truncate
+            if i == len(split_lines) - 1 and split_scale < min_horizontal_scale:
+                split_text = _truncate_at_word_boundary(
+                    canvas, split_text, effective_width, line.font_family, line.point_size,
+                    min_horizontal_scale
                 )
+                split_scale = min_horizontal_scale
 
-                # Calculate scale needed for each split line
-                split_parts : list[tuple[str, float]]= []
-                for i, split_text in enumerate(split_lines):
-                    split_width = canvas.stringWidth(split_text, line.font_family, line.point_size)
-                    split_scale = effective_width / split_width if split_width > effective_width else 1.0
+            split_parts.append((split_text, split_scale))
 
-                    # If last line and scale still too extreme, truncate
-                    if i == len(split_lines) - 1 and split_scale < min_horizontal_scale:
-                        split_text = _truncate_at_word_boundary(
-                            canvas, split_text, effective_width, line.font_family, line.point_size,
-                            min_horizontal_scale
-                        )
-                        split_scale = min_horizontal_scale
+        # Find worst (minimum) scale among split parts from THIS line only
+        unified_scale = min(scale for _, scale in split_parts)
 
-                    split_parts.append((split_text, split_scale))
-
-                # Find worst (minimum) scale among split parts from THIS line only
-                unified_scale = min(scale for _, scale in split_parts)
-
-                # Apply unified scale to all parts of this split line
-                for split_text, _ in split_parts:
-                    processed_lines.append(Line(
-                        text=split_text,
-                        point_size=line.point_size,
-                        leading_ratio=line.leading_ratio,
-                        horizontal_scale=unified_scale,
-                        fixed_size=line.fixed_size,
-                        track=line.track,  # All split parts reference the same track
-                        font_family=line.font_family,
-                        prefix=line.prefix,
-                        suffix=line.suffix,
-                        prefix_font=line.prefix_font,
-                        suffix_font=line.suffix_font,
-                        prefix_horizontal_scale=line.prefix_horizontal_scale,
-                        suffix_horizontal_scale=line.suffix_horizontal_scale
-                    ))
+        # Apply unified scale to all parts of this split line (increment split_index)
+        for split_text, _ in split_parts:
+            processed_lines.append(replace(
+                line,
+                text=split_text,
+                horizontal_scale=unified_scale,
+                split_index=line.split_index + 1  # Increment to track split generation
+            ))
 
     return processed_lines
 
@@ -603,124 +603,50 @@ def fit_text_block(
     Returns:
         List of fitted Line objects with final text, point_size, leading_ratio, font_family, and horizontal_scale.
     """
-    # Make copies of input lines to avoid mutating originals
-    current_lines = [copy.copy(line) for line in lines]
+    # Make copies of input lines - these are the mutable templates
+    # whose point_size will be reduced each iteration
+    original_lines = [copy.copy(line) for line in lines]
+
+    # Populate actual glyph measurements ONCE before fitting loop
+    # These will scale proportionally with point_size during iterations
+    _populate_adjusted_point_sizes(original_lines)
 
     while True:
-        # Process lines at current sizes
-        processed_lines = _process_lines_at_current_size(
-            canvas, current_lines, context, max_width,
+        # Process originals at current sizes -> creates NEW immutable output with splits/compression
+        fitted_lines = _process_lines_at_current_size(
+            canvas, original_lines, context, max_width,
             min_horizontal_scale, split_max
         )
 
-        # Calculate total height
-        total_height = calculate_total_height(processed_lines, adjusted=glyph_height_adjusted)
+        # Re-measure fitted lines (splits may have different glyph heights than originals)
+        _populate_adjusted_point_sizes(fitted_lines)
+
+        # Calculate total height of the fitted output
+        total_height = calculate_total_height(fitted_lines, adjusted=glyph_height_adjusted)
 
         # Check if we fit within vertical constraints
         if total_height <= max_height:
-            # Populate adjusted_point_size for all lines before returning
-            _populate_adjusted_point_sizes(processed_lines)
-            return processed_lines
+            # fitted_lines already has accurate adjusted_point_size from line 622
+            return fitted_lines
 
-        # Check if we've hit minimum size
-        min_size = min(line.point_size for line in current_lines)
+        # Check if we've hit minimum size (check originals)
+        min_size = min(line.point_size for line in original_lines)
         if min_size <= min_point_size:
             # Can't reduce further, return best effort
-            _populate_adjusted_point_sizes(processed_lines)
-            return processed_lines
+            return fitted_lines
 
-        # Reduce font sizes proportionally (skip fixed_size lines)
+        # Reduce font sizes on ORIGINALS (not fitted output)
+        # Scale both point_size and adjusted_point_size proportionally
         size_changed = False
-        for line in current_lines:
+        for line in original_lines:
             if not line.fixed_size:
                 line.point_size *= size_reduction_ratio
+                line.adjusted_point_size *= size_reduction_ratio
                 size_changed = True
 
         # If all lines are fixed_size, we can't reduce further
         if not size_changed:
-            _populate_adjusted_point_sizes(processed_lines)
-            return processed_lines
-
-
-def render_fitted_lines_with_prefix_suffix(
-    fitted_lines: List[Line],
-    canvas: Canvas,
-    context: RendererContext,
-    start_y: float,
-    padding: float,
-    available_width: float
-) -> float:
-    """
-    Render fitted text lines with monospace prefix, resizable middle text, and monospace suffix.
-
-    This function handles drawing lines where:
-    - Prefix is drawn in monospace font (never compressed)
-    - Main text can be horizontally scaled for fitting
-    - Suffix is drawn in monospace font (right-aligned, never compressed)
-
-    Args:
-        fitted_lines: List of fitted Line objects from fit_text_block.
-        canvas: ReportLab canvas for drawing.
-        context: Rendering context with theme information.
-        start_y: Starting Y position for the first line.
-        padding: Horizontal padding from the edges.
-        available_width: Total available width for the text area.
-
-    Returns:
-        Final Y position after drawing all lines.
-    """
-    from reportlab.lib.colors import Color
-
-    text_y = start_y
-
-    for fitted_line in fitted_lines:
-        # Skip empty lines (spacing)
-        if not fitted_line.text:
-            text_y -= fitted_line.adjusted_point_size + (fitted_line.point_size * fitted_line.leading_ratio)
-            continue
-
-        canvas.setFillColor(Color(*context.theme.effective_text_color))
-
-        # Get fonts for prefix/suffix
-        prefix_font = fitted_line.prefix_font or context.theme.monospace_family
-        suffix_font = fitted_line.suffix_font or context.theme.monospace_family
-
-        # Calculate prefix width (accounting for scaling)
-        prefix_width = (canvas.stringWidth(fitted_line.prefix, prefix_font, fitted_line.point_size) * fitted_line.prefix_horizontal_scale) if fitted_line.prefix else 0
-
-        # Draw prefix (monospace, can be compressed)
-        if fitted_line.prefix:
-            canvas.setFont(prefix_font, fitted_line.point_size)
-            canvas.saveState()
-            canvas.translate(padding, text_y)
-            canvas.scale(fitted_line.prefix_horizontal_scale, 1.0)
-            canvas.drawString(0, 0, fitted_line.prefix)
-            canvas.restoreState()
-
-        # Draw text (proportional font, can be compressed)
-        canvas.setFont(fitted_line.font_family, fitted_line.point_size)
-        canvas.saveState()
-        canvas.translate(padding + prefix_width, text_y)
-        canvas.scale(fitted_line.horizontal_scale, 1.0)
-        canvas.drawString(0, 0, fitted_line.text)
-        canvas.restoreState()
-
-        # Draw suffix if present (right-aligned, can be compressed)
-        if fitted_line.suffix:
-            suffix_width = canvas.stringWidth(fitted_line.suffix, suffix_font, fitted_line.point_size) * fitted_line.suffix_horizontal_scale
-            suffix_x = padding + available_width - suffix_width
-            canvas.setFont(suffix_font, fitted_line.point_size)
-            canvas.saveState()
-            canvas.translate(suffix_x, text_y)
-            canvas.scale(fitted_line.suffix_horizontal_scale, 1.0)
-            canvas.drawString(0, 0, fitted_line.suffix)
-            canvas.restoreState()
-
-        # Move down for next line
-        text_y -= fitted_line.point_size + (fitted_line.point_size * fitted_line.leading_ratio)
-
-    return text_y
-
+            return fitted_lines
 
 # ============================================================================
 # Centralized Canonical Rendering Functions

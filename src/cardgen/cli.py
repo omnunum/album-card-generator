@@ -96,6 +96,11 @@ def main() -> None:
     is_flag=True,
     help="Show Dolby NR logo on the spine (takes up half the spine height).",
 )
+@click.option(
+    "--output-dir",
+    type=str,
+    help="Output directory for rendered PDFs. Overrides config setting. Relative paths resolve to current directory.",
+)
 def album(
     urls: tuple[str, ...],
     output: Path | None,
@@ -111,6 +116,7 @@ def album(
     cover_art_mode: str | None,
     cover_art_align: str | None,
     dolby_logo: bool,
+    output_dir: str | None,
 ) -> None:
     """
     Generate j-cards from one or more Navidrome albums.
@@ -215,7 +221,15 @@ def album(
             total_cards = len(albums) + len(double_album_pairs)
             if total_cards > 1:
                 output_filename = output_filename.replace(".pdf", f"_and_{total_cards-1}_more.pdf")
-            output = Path(output_filename)
+
+            # Use CLI override or config setting
+            output_dir_str = output_dir or cfg.output_directory
+            # Resolve to absolute path (relative paths use CWD)
+            resolved_output_dir = Path(output_dir_str).resolve()
+            output = resolved_output_dir / output_filename
+
+        # Create output directory if it doesn't exist
+        output.parent.mkdir(parents=True, exist_ok=True)
 
         # Select card type (default to jcard_5panel)
         selected_card_type = card_type or "jcard_5panel"
@@ -301,7 +315,7 @@ def album(
         selected_page_size = page_size or "letter"  # Default to letter
 
         click.echo(f"Generating PDF with {len(cards)} card(s) at {render_dpi} DPI on {selected_page_size} page...")
-        render_cards_to_pdf(cards, output, dpi=render_dpi, page_size=selected_page_size, include_crop_marks=include_marks)
+        render_cards_to_pdf(cards, output, dpi=render_dpi, page_size=selected_page_size, include_crop_marks=include_marks, config=cfg)
 
         click.echo(f"✓ J-card(s) saved to: {output}")
 

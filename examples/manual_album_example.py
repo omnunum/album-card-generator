@@ -94,7 +94,9 @@ card = create_card_from_album(album, album_art, JCard4Panel, theme)
 # =============================================================================
 # Render to PDF
 # =============================================================================
+# Note: Without config parameter, the PDF is saved to the current working directory.
+# To use config.output_directory, load config with load_config() and pass config=config.
 render_cards_to_pdf([card], "manual_card.pdf", dpi=600)
 
 print("✓ Card created from manual Album object")
-print("✓ PDF saved to: manual_card.pdf")
+print("✓ PDF saved to: manual_card.pdf (in current directory)")

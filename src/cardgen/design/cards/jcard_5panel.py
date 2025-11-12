@@ -40,6 +40,10 @@ class JCard5Panel(Card):
         super().__init__(album, theme, tape_length_minutes)
         self.album_art = album_art
 
+        # Renumber tracks sequentially (handles multi-disc albums where tracks may have duplicate numbers)
+        for i, track in enumerate(album.tracks, start=1):
+            track.track_number = i
+
         # Assign tracks to tape sides (modifies tracks in place)
         self.side_capacity = assign_tape_sides(album.tracks, tape_length_minutes)
 
@@ -80,7 +84,7 @@ class JCard5Panel(Card):
                 ),
                 album=self.album,
                 font_size=9.0,
-                padding=1/32
+                padding=1/16  # Match double album padding
             )
         )
 
@@ -135,11 +139,11 @@ class JCard5Panel(Card):
             )
         )
 
-        # Panel 5: Split vertically into Genre Tree (top 30%) and Descriptors (middle 30%), bottom 40% blank
+        # Panel 5: Split vertically 50/50 - Genre Tree (top) and Descriptors (bottom)
 
-        # Genre tree at top: 30% of height = 1.2", positioned at y=2.8"
-        genre_tree_height = JCARD_HEIGHT * 0.3
-        genre_tree_y = JCARD_HEIGHT * 0.7  # 70% from bottom = top 30%
+        # Genre tree at top: 50% of height = 2.0", positioned at y=2.0"
+        genre_tree_height = JCARD_HEIGHT * 0.5
+        genre_tree_y = JCARD_HEIGHT * 0.5  # Top half
 
         sections.append(
             GenreTreeSection(
@@ -152,13 +156,13 @@ class JCard5Panel(Card):
                 ),
                 album=self.album,
                 font_size=10.0,
-                padding=1/8,
+                padding=1/16,
             )
         )
 
-        # Descriptors below genre tree: 30% of height = 1.2", positioned at y=1.6"
-        descriptors_height = JCARD_HEIGHT * 0.3
-        descriptors_y = JCARD_HEIGHT * 0.4  # 40% from bottom
+        # Descriptors at bottom: 50% of height = 2.0", positioned at y=0.0"
+        descriptors_height = JCARD_HEIGHT * 0.5
+        descriptors_y = 0.0  # Bottom half
 
         sections.append(
             DescriptorsSection(
@@ -171,11 +175,10 @@ class JCard5Panel(Card):
                 ),
                 album=self.album,
                 font_size=10.0,
-                padding=1/8,
+                padding=1/16,
             )
         )
 
-        # Bottom 40% of panel 5 is left blank (no section added)
 
         return sections
 
@@ -189,8 +192,8 @@ class JCard5Panel(Card):
         # Fold lines between each panel
         # Back (0.667") | Spine (0.5") | Front (2.5") | Inside (2.5") | Genre/Descriptors (2.5")
         return [
-            JCARD_BACK_WIDTH,  # Between back and spine
-            JCARD_BACK_WIDTH + JCARD_SPINE_WIDTH,  # Between spine and front
-            JCARD_BACK_WIDTH + JCARD_SPINE_WIDTH + JCARD_PANEL_WIDTH,  # Between front and inside
+            # JCARD_BACK_WIDTH,  # Between back and spine
+            # JCARD_BACK_WIDTH + JCARD_SPINE_WIDTH,  # Between spine and front
+            # JCARD_BACK_WIDTH + JCARD_SPINE_WIDTH + JCARD_PANEL_WIDTH,  # Between front and inside
             JCARD_BACK_WIDTH + JCARD_SPINE_WIDTH + JCARD_PANEL_WIDTH + JCARD_PANEL_WIDTH,  # Between inside and genre panel
         ]

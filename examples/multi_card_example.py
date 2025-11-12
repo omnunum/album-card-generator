@@ -110,6 +110,7 @@ render_cards_to_pdf(
     dpi=720,  # Higher quality
     include_crop_marks=True,  # Include cutting/folding guides
     page_size="letter",  # US Letter (8.5" x 11")
+    config=config,
 )
 
 print("✓ Created multi-page PDF: my_custom_cards.pdf")

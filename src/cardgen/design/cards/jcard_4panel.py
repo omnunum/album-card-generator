@@ -42,6 +42,10 @@ class JCard4Panel(Card):
         self.album_art = album_art
         self.panels = get_panel_dimensions()
 
+        # Renumber tracks sequentially (handles multi-disc albums where tracks may have duplicate numbers)
+        for i, track in enumerate(album.tracks, start=1):
+            track.track_number = i
+
         # Assign tracks to tape sides (modifies tracks in place)
         self.side_capacity = assign_tape_sides(album.tracks, tape_length_minutes)
 
@@ -65,7 +69,7 @@ class JCard4Panel(Card):
 
         # Inside panel - Split vertically: 60% tracklist, 40% genre/descriptors with 1/16" bottom margin
         inside_panel = self.panels["inside"]
-        bottom_margin = 0.0625  # 1/16" margin at bottom
+        bottom_margin = 1/16  # 1/16" margin at bottom
 
         # Available height after accounting for bottom margin
         available_height = inside_panel.height - bottom_margin

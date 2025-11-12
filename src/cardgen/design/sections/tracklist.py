@@ -9,7 +9,7 @@ from reportlab.pdfgen.canvas import Canvas
 from cardgen.api.models import Track
 from cardgen.design.base import CardSection, RendererContext
 from cardgen.utils.dimensions import Dimensions, inches_to_points
-from cardgen.utils.text import fit_text_block, Line, measure_text_height, calculate_line_advancement
+from cardgen.utils.text import fit_text_block, Line, measure_text_height, calculate_line_advancement, has_non_latin_characters
 from cardgen.fonts import resolve_font
 
 
@@ -123,8 +123,17 @@ class TracklistSection(CardSection):
         side_a_unused_duration = 0.0
         if self.use_tape_flip_offset:
             side_a_tracks = [t for t in self.tracks if t.side == "A"]
+            side_b_tracks = [t for t in self.tracks if t.side == "B"]
+
             total_side_a_duration = sum(t.duration for t in side_a_tracks)
-            side_a_unused_duration = self.side_capacity - total_side_a_duration
+            total_side_b_duration = sum(t.duration for t in side_b_tracks)
+            side_a_unused = self.side_capacity - total_side_a_duration
+
+            # Only use offset if Side B + offset fits within capacity
+            # This prevents the minimap from showing overflow when offset would make Side B exceed tape length
+            if total_side_b_duration + side_a_unused <= self.side_capacity:
+                side_a_unused_duration = side_a_unused
+            # Otherwise, side_a_unused_duration stays 0 (no offset shown)
 
         text_y = self._render_fitted_lines(
             context, fitted_lines, text_y, text_width,
@@ -155,12 +164,16 @@ class TracklistSection(CardSection):
 
             # Side A tracks (normal text that can be reduced)
             for track in [t for t in self.tracks if t.side == "A"]:
+                # Use unicode font if track title contains non-Latin characters
+                track_font = (context.theme.unicode_font_family
+                             if has_non_latin_characters(track.title)
+                             else context.theme.font_family)
                 lines.append(Line(
                     text=track.title,
                     point_size=context.theme.track_font_size,
                     leading_ratio=self.track_leading_ratio,
                     track=track,  # Reference to original track
-                    font_family=context.theme.font_family,
+                    font_family=track_font,
                     prefix=f"{track.track_number:2d}. ",
                     suffix=f" {track.format_duration()}"
                 ))
@@ -177,12 +190,16 @@ class TracklistSection(CardSection):
 
             # Side B tracks (normal text that can be reduced)
             for track in [t for t in self.tracks if t.side == "B"]:
+                # Use unicode font if track title contains non-Latin characters
+                track_font = (context.theme.unicode_font_family
+                             if has_non_latin_characters(track.title)
+                             else context.theme.font_family)
                 lines.append(Line(
                     text=track.title,
                     point_size=context.theme.track_font_size,
                     leading_ratio=self.track_leading_ratio,
                     track=track,  # Reference to original track
-                    font_family=context.theme.font_family,
+                    font_family=track_font,
                     prefix=f"{track.track_number:2d}. ",
                     suffix=f" {track.format_duration()}"
                 ))
@@ -299,9 +316,9 @@ class TracklistSection(CardSection):
                     c.setFont(prefix_font, fitted_line.point_size)
                     c.drawString(context.x + context.padding, text_y, prefix)
 
-                # Draw track title with horizontal scaling
-                c.setFont(context.theme.font_family, fitted_line.point_size)
-                
+                # Draw track title with horizontal scaling (use line's font_family to support Unicode fonts)
+                c.setFont(fitted_line.font_family, fitted_line.point_size)
+
                 c.saveState()
                 title_x = context.x + context.padding + prefix_width
                 c.translate(title_x, text_y)

@@ -1,6 +1,7 @@
 """Font registration and management."""
 
 import logging
+import platform
 from pathlib import Path
 from typing import Optional
 
@@ -39,6 +40,83 @@ def _normalize_font_name(name: str) -> str:
     # Split by hyphens, title-case each part, rejoin
     parts = name.split('-')
     return '-'.join(part.title() for part in parts)
+
+
+def register_system_fonts() -> None:
+    """
+    Discover and register system fonts from standard directories.
+
+    Scans platform-specific system font directories and registers all TTF/OTF fonts.
+    Fonts are normalized to TitleCase (e.g., "Arial Unicode.ttf" → "Arial-Unicode").
+
+    Platform directories:
+        - macOS: /System/Library/Fonts/, /Library/Fonts/, ~/Library/Fonts/
+        - Windows: C:\\Windows\\Fonts\\, %LOCALAPPDATA%\\Microsoft\\Windows\\Fonts\\
+        - Linux: /usr/share/fonts/, ~/.local/share/fonts/, ~/.fonts/
+
+    Logs at DEBUG level to avoid spam.
+    """
+    system = platform.system()
+    font_dirs: list[Path] = []
+
+    # Determine system font directories based on platform
+    if system == "Darwin":  # macOS
+        font_dirs = [
+            Path("/System/Library/Fonts"),
+            Path("/System/Library/Fonts/Supplemental"),
+            Path("/Library/Fonts"),
+            Path.home() / "Library" / "Fonts",
+        ]
+    elif system == "Windows":
+        import os
+        font_dirs = [
+            Path(os.environ.get("WINDIR", "C:\\Windows")) / "Fonts",
+        ]
+        # User fonts directory
+        localappdata = os.environ.get("LOCALAPPDATA")
+        if localappdata:
+            font_dirs.append(Path(localappdata) / "Microsoft" / "Windows" / "Fonts")
+    elif system == "Linux":
+        font_dirs = [
+            Path("/usr/share/fonts"),
+            Path("/usr/local/share/fonts"),
+            Path.home() / ".local" / "share" / "fonts",
+            Path.home() / ".fonts",
+        ]
+
+    # Scan directories and register fonts
+    registered_count = 0
+    for font_dir in font_dirs:
+        if not font_dir.exists():
+            continue
+
+        # Recursively find all TTF and OTF files
+        for pattern in ("**/*.ttf", "**/*.otf"):
+            for font_path in font_dir.glob(pattern):
+                try:
+                    # Normalize font name from filename
+                    font_name = _normalize_font_name(font_path.stem)
+
+                    # Skip if already registered (local fonts take precedence)
+                    try:
+                        pdfmetrics.getFont(font_name)
+                        logger.debug(f"System font {font_name} already registered, skipping")
+                        continue
+                    except Exception:
+                        pass
+
+                    # Register the font
+                    pdfmetrics.registerFont(TTFont(font_name, str(font_path)))
+                    _FONT_PATHS[font_name] = font_path
+                    logger.debug(f"Registered system font: {font_name} from {font_path.name}")
+                    registered_count += 1
+
+                except Exception as e:
+                    # Silently skip problematic fonts (DEBUG level to avoid spam)
+                    logger.debug(f"Failed to register system font {font_path.name}: {e}")
+
+    if registered_count > 0:
+        logger.info(f"Registered {registered_count} system font(s)")
 
 
 def register_fonts() -> None:
@@ -89,6 +167,9 @@ def register_fonts() -> None:
         logger.info("No custom fonts registered. Using built-in PDF fonts.")
     elif registered_count > 0:
         logger.info(f"Successfully registered {registered_count} custom font(s).")
+
+    # Register system fonts (after local fonts, so local fonts take precedence)
+    register_system_fonts()
 
 
 def resolve_font(font_spec: str, fallback: str = "Helvetica") -> str:
@@ -158,10 +239,18 @@ def resolve_font(font_spec: str, fallback: str = "Helvetica") -> str:
             return result
         logger.warning(f"Could not download '{font_name}' from Google Fonts")
 
-    # 3. Fall back
+    # 3. Try fallback font (check if it's registered)
     fallback_normalized = _normalize_font_name(fallback)
-    logger.info(f"Using fallback font '{fallback_normalized}' for '{font_spec}'")
-    return fallback_normalized
+    try:
+        pdfmetrics.getFont(fallback_normalized)
+        logger.info(f"Using fallback font '{fallback_normalized}' for '{font_spec}'")
+        return fallback_normalized
+    except Exception:
+        pass
+
+    # 4. Final fallback to Helvetica (always available as PDF built-in)
+    logger.warning(f"Fallback font '{fallback_normalized}' not found, using Helvetica")
+    return "Helvetica"
 
 
 def is_iosevka_available() -> bool:

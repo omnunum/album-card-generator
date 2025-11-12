@@ -2,6 +2,18 @@
 # This is the only required configuration!
 # All theme settings have sensible defaults and can be overridden via CLI or Theme() parameters.
 
+
+# Output Configuration (Optional)
+# Directory where rendered PDFs will be saved
+# Defaults to "rendered" subdirectory if not specified
+#
+# Relative paths (e.g., "rendered", "../output") resolve to current working directory
+# Absolute paths (e.g., "/Users/you/albums") are used as-is
+# Can be overridden per-command with --output-dir CLI option
+#
+# output_directory = "rendered"
+
+
 [navidrome]
 url = "https://music.example.com"
 username = "your_username"

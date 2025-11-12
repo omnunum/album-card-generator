@@ -20,7 +20,7 @@ card = create_double_album_card(
 )
 
 # Render to PDF
-render_cards_to_pdf([card], "double_album_basic.pdf", dpi=600)
+render_cards_to_pdf([card], "double_album_basic.pdf", dpi=600, config=config)
 print("✓ Saved to double_album_basic.pdf")
 
 # Option 2: Double album with gradient
@@ -35,7 +35,7 @@ card_gradient = create_double_album_card(
     )
 )
 
-render_cards_to_pdf([card_gradient], "double_album_gradient.pdf", dpi=600)
+render_cards_to_pdf([card_gradient], "double_album_gradient.pdf", dpi=600, config=config)
 print("✓ Saved to double_album_gradient.pdf")
 
 # Option 3: Double album with Dolby logo
@@ -49,7 +49,7 @@ card_dolby = create_double_album_card(
     )
 )
 
-render_cards_to_pdf([card_dolby], "double_album_dolby.pdf", dpi=600)
+render_cards_to_pdf([card_dolby], "double_album_dolby.pdf", dpi=600, config=config)
 print("✓ Saved to double_album_dolby.pdf")
 
 # Option 4: Double album with custom settings
@@ -67,7 +67,7 @@ card_custom = create_double_album_card(
     )
 )
 
-render_cards_to_pdf([card_custom], "double_album_custom.pdf", dpi=720)
+render_cards_to_pdf([card_custom], "double_album_custom.pdf", dpi=720, config=config)
 print("✓ Saved to double_album_custom.pdf")
 
 print("\n✓ All examples completed!")

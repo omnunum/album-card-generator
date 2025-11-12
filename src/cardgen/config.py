@@ -40,16 +40,19 @@ class Theme(BaseModel):
     monospace_family_bold: str = "Iosevka-Bold"
     """Bold variant of monospace font. Automatically resolved during font setup."""
 
+    unicode_font_family: str = "Iosevka-Regular"
+    """Font family for Unicode characters beyond basic Latin. Uses Iosevka-Regular (from local fonts) with fallback to Arial Unicode (system font)."""
+
     title_font: str = "Helvetica-Bold"
     """Font for album title. Supports 'fontname' or 'fontname:weight' (e.g., 'orbitron:700'). Auto-resolves: local → Google Fonts → fallback."""
 
     artist_font: str = "Helvetica"
     """Font for artist name. Supports 'fontname' or 'fontname:weight' (e.g., 'roboto:400'). Auto-resolves: local → Google Fonts → fallback."""
 
-    album_title_font_size: int = 14
+    album_title_font_size: int = 20
     """Font size for album title in points."""
 
-    artist_font_size: int = 12
+    artist_font_size: int = 14
     """Font size for artist name in points."""
 
     subtitle_font_size: int = 12
@@ -166,6 +169,8 @@ class Config(BaseModel):
     """Root configuration (minimal - just Navidrome credentials)."""
 
     navidrome: NavidromeConfig
+    output_directory: str = "rendered"
+    """Directory where rendered PDFs will be saved. Defaults to 'rendered' subdirectory."""
 
 
 def load_config(config_path: Path | None = None) -> Config:

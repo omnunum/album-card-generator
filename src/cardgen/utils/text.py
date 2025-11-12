@@ -3,6 +3,7 @@
 from __future__ import annotations
 import copy
 import logging
+import re
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, List
 from reportlab.pdfgen.canvas import Canvas
@@ -347,7 +348,9 @@ def _split_line_at_word_boundary(
     Returns:
         List of text segments (up to split_max + 1 lines).
     """
-    words = text.split()
+    # Split on whitespace and after forward slashes (e.g., "Rock/Pop" -> ["Rock/", "Pop"])
+    words = re.split(r'(?<=/)|\s+', text)
+    words = [w for w in words if w]  # Remove empty strings
     lines : list[str] = []
     current_line = ""
 
